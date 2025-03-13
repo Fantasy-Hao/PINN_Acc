@@ -1,6 +1,6 @@
 # Accelerated Training Methods of Physics-Informed Neural Networks(PINNs)
 
-The repository contains the implementations of both the algorithm and examples described in the graduation design(thesis) entitled “Accelerated Training Methods of Physics-Informed Neural Networks” by Yuxin Hao. 
+The repository contains the implementations of the graduation design(thesis) entitled “Accelerated Training Methods of Physics-Informed Neural Networks” by Yuxin Hao. 
 
 ## Result
 <figure>
