@@ -24,7 +24,7 @@ The repository contains the implementations of the graduation design(thesis) ent
         </td>
         <td>
             <figure>
-                <figcaption>Fitting solution: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>u</mi></math></figcaption>
+                <figcaption>Absolute error: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>u</mi></math></figcaption>
                 <img src="./result/solutions/sa+rba+mmlp_u_error.png" width="100%" height="100%"/>
             </figure>
         </td>
@@ -44,7 +44,7 @@ The repository contains the implementations of the graduation design(thesis) ent
         </td>
         <td>
             <figure>
-                <figcaption>Fitting solution: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>v</mi></math></figcaption>
+                <figcaption>Absolute error: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>v</mi></math></figcaption>
                 <img src="./result/solutions/sa+rba+mmlp_v_error.png" width="100%" height="100%"/>
             </figure>
         </td>
@@ -64,7 +64,7 @@ The repository contains the implementations of the graduation design(thesis) ent
         </td>
         <td>
             <figure>
-                <figcaption>Fitting solution: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>p</mi></math></figcaption>
+                <figcaption>Absolute error: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>p</mi></math></figcaption>
                 <img src="./result/solutions/sa+rba+mmlp_p_error.png" width="100%" height="100%"/>
             </figure>
         </td>
