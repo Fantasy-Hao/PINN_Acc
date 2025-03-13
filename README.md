@@ -2,6 +2,7 @@
 
 The repository contains the implementations of the graduation design(thesis) entitled “Accelerated Training Methods of Physics-Informed Neural Networks” by Yuxin Hao. 
 
+
 ## Result
 <figure>
     <figcaption>MSE Curve</figcaption>
@@ -12,19 +13,19 @@ The repository contains the implementations of the graduation design(thesis) ent
     <tr>
         <td>
             <figure>
-                <figcaption>Exact solution: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>u</mi></math></figcaption>
+                <figcaption>Exact solution: u </figcaption>
                 <img src="./result/solutions/u_star.png" width="100%" height="100%"/>
             </figure>
         </td>
         <td>
             <figure>
-                <figcaption>Fitting solution: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>u</mi></math></figcaption>
+                <figcaption>Fitting solution: u </figcaption>
                 <img src="./result/solutions/sa+rba+mmlp_u_pred.png" width="100%" height="100%"/>
             </figure>
         </td>
         <td>
             <figure>
-                <figcaption>Absolute error: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>u</mi></math></figcaption>
+                <figcaption>Absolute error: u </figcaption>
                 <img src="./result/solutions/sa+rba+mmlp_u_error.png" width="100%" height="100%"/>
             </figure>
         </td>
@@ -32,19 +33,19 @@ The repository contains the implementations of the graduation design(thesis) ent
     <tr>
         <td>
             <figure>
-                <figcaption>Exact solution: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>v</mi></math></figcaption>
+                <figcaption>Exact solution: v </figcaption>
                 <img src="./result/solutions/v_star.png" width="100%" height="100%"/>
             </figure>
         </td>
         <td>
             <figure>
-                <figcaption>Fitting solution: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>v</mi></math></figcaption>
+                <figcaption>Fitting solution: v </figcaption>
                 <img src="./result/solutions/sa+rba+mmlp_v_pred.png" width="100%" height="100%"/>
             </figure>
         </td>
         <td>
             <figure>
-                <figcaption>Absolute error: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>v</mi></math></figcaption>
+                <figcaption>Absolute error: v </figcaption>
                 <img src="./result/solutions/sa+rba+mmlp_v_error.png" width="100%" height="100%"/>
             </figure>
         </td>
@@ -52,19 +53,19 @@ The repository contains the implementations of the graduation design(thesis) ent
     <tr>
         <td>
             <figure>
-                <figcaption>Exact solution: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>p</mi></math></figcaption>
+                <figcaption>Exact solution: p </figcaption>
                 <img src="./result/solutions/p_star.png" width="100%" height="100%"/>
             </figure>
         </td>
         <td>
             <figure>
-                <figcaption>Fitting solution: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>p</mi></math></figcaption>
+                <figcaption>Fitting solution: p </figcaption>
                 <img src="./result/solutions/sa+rba+mmlp_p_pred.png" width="100%" height="100%"/>
             </figure>
         </td>
         <td>
             <figure>
-                <figcaption>Absolute error: <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>p</mi></math></figcaption>
+                <figcaption>Absolute error: p </figcaption>
                 <img src="./result/solutions/sa+rba+mmlp_p_error.png" width="100%" height="100%"/>
             </figure>
         </td>
@@ -72,9 +73,9 @@ The repository contains the implementations of the graduation design(thesis) ent
 </table>
 
 
-
 ## License
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/git/git-scm.com/blob/gh-pages/MIT-LICENSE.txt) 
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/git/git-scm.com/blob/gh-pages/MIT-LICENSE.txt)
+
 
 ## Reference
  - Raissi M, Perdikaris P, Karniadakis G E. [Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations[J].](https://www.sciencedirect.com/science/article/abs/pii/S0021999118307125) Journal of Computational physics, 2019, 378: 686-707.
