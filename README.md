@@ -3,13 +3,17 @@
 
 The repository contains the implementations of the graduation design(thesis) entitled “Accelerated Training Methods of Physics-Informed Neural Networks” by Yuxin Hao. 
 
-Physics-Informed Neural Networks (PINN) is a machine learning framework that combines deep learning with prior physical knowledge to solve complex physics problems, particularly the solution of Partial Differential Equations (PDE) and the simulation of system dynamics. However, in practical scenarios, the training process of the PINN model often encounters challenges like sluggish convergence and suboptimal computational efficiency.
+Physics-Informed Neural Networks (PINN) is an innovative approach that combines deep learning techniques with classical physical laws. These neural networks not only rely on traditional data-driven learning but also incorporate prior knowledge of physical fields into their loss functions. This allows PINN to solve a wide range of complex physical problems, even with very limited observational data or no data at all, demonstrating broad application potential. However, in practical applications, the training process of PINN models often encounters issues such as slow convergence and low computational efficiency.
 
-This thesis provides a comprehensive introduction to the fundamental theory of PINN and its applications in handling complex PDE, contrasts PINN with traditional machine learning methods, and analyzes the advantages of PINN over traditional numerical methods. Subsequently, with a focus on the phenomenon of vortex shedding as delineated by the Navier-Stokes equation, specific solutions are proposed, and optimizations for PINN are explored along three avenues: adaptive sampling, dynamic adjustment of loss weights, and enhanced network architecture.
-    
-In terms of sampling methods, the thesis initially introduces traditional fixed sampling and random resampling, followed by two types of adaptive sampling strategies: adaptive distribution based on residuals effectively enhances model prediction accuracy by simulating regions with large residuals, while the retain-resample-release method further reduces computational burden. For dynamic adjustment of loss weights, the adaptability of neural networks and residual-based attention are incorporated into the loss function, accelerating the model convergence process. In terms of network structure, an improved Multi-Layer Perceptron based on Transformers enhances the model's ability to capture complex data features by combining residual connections and self-attention mechanisms. Through the integration of these three methods, optimization and acceleration of the PINN model are achieved.
-    
-Finally, the thesis summarizes the principal research findings and proposes several future directions for further enhancing the PINN algorithm.
+In this thesis, a PINN model is constructed based on the Navier-Stokes equations, and the model is optimized in several aspects:
+
+ - Sampling Methods: This study delves into adaptive sampling methods based on residuals. It first highlights the limitations of traditional fixed and random resampling techniques in handling complex PDE problems. Then, it introduces two adaptive strategies: RAR and RAD. RAR dynamically adds sampling points based on residual size, while RAD optimizes sampling data points according to the probability distribution of residuals, both aiming to improve the sampling distribution to accurately match the PDE solution. To address the computational efficiency and parameter tuning challenges in the RAD method, the R3 algorithm is proposed, effectively accelerating model convergence and enhancing prediction accuracy.
+
+ - Loss Function: To address the gradient imbalance issue in the parameter optimization process of PINN, this study introduces improvements to the loss function. First, the dynamic weights of the loss function are incorporated into the training process by leveraging the adaptability of neural networks, thus balancing the various components of the loss function adaptively. Subsequently, a novel Residual-Based Attention (RBA) mechanism is introduced. This mechanism dynamically weighs the sampling points based on the cumulative changes in residuals without requiring additional gradient calculations, further improving the solving efficiency and accuracy.
+
+ - Network Architecture: An improved Multi-Layer Perceptron (MLP) architecture is used, incorporating self-attention mechanisms to enhance the neural network's ability to capture interactions and deep representations of input features, thereby improving model performance.
+
+Through these optimizations, the PINN model's convergence speed and computational efficiency are significantly enhanced.
 
 
 ## Result
