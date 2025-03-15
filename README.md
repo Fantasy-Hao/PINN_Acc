@@ -1,6 +1,15 @@
 # Accelerated Training Methods of Physics-Informed Neural Networks(PINNs)
 
+
 The repository contains the implementations of the graduation design(thesis) entitled “Accelerated Training Methods of Physics-Informed Neural Networks” by Yuxin Hao. 
+
+Physics-Informed Neural Networks (PINN) is a machine learning framework that combines deep learning with prior physical knowledge to solve complex physics problems, particularly the solution of Partial Differential Equations (PDE) and the simulation of system dynamics. However, in practical scenarios, the training process of the PINN model often encounters challenges like sluggish convergence and suboptimal computational efficiency.
+
+This thesis provides a comprehensive introduction to the fundamental theory of PINN and its applications in handling complex PDE, contrasts PINN with traditional machine learning methods, and analyzes the advantages of PINN over traditional numerical methods. Subsequently, with a focus on the phenomenon of vortex shedding as delineated by the Navier-Stokes equation, specific solutions are proposed, and optimizations for PINN are explored along three avenues: adaptive sampling, dynamic adjustment of loss weights, and enhanced network architecture.
+    
+In terms of sampling methods, the thesis initially introduces traditional fixed sampling and random resampling, followed by two types of adaptive sampling strategies: adaptive distribution based on residuals effectively enhances model prediction accuracy by simulating regions with large residuals, while the retain-resample-release method further reduces computational burden. For dynamic adjustment of loss weights, the adaptability of neural networks and residual-based attention are incorporated into the loss function, accelerating the model convergence process. In terms of network structure, an improved Multi-Layer Perceptron based on Transformers enhances the model's ability to capture complex data features by combining residual connections and self-attention mechanisms. Through the integration of these three methods, optimization and acceleration of the PINN model are achieved.
+    
+Finally, the thesis summarizes the principal research findings and proposes several future directions for further enhancing the PINN algorithm.
 
 
 ## Result
