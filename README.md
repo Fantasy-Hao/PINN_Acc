@@ -1,96 +1,63 @@
-# Accelerated Training Methods of Physics-Informed Neural Networks(PINNs)
+# PINN_Acc
+
+> **Accelerated Training Methods for Physics-Informed Neural Networks (PINNs)**
+
+## Overview
+
+Physics-Informed Neural Networks (PINNs) incorporate physical laws—typically expressed by partial differential equations (PDEs)—into neural network training. By embedding PDE residuals into the loss function, PINNs can solve forward or inverse problems even with limited or no observational data.
+
+However, vanilla PINNs often suffer from **slow convergence, training instability, and poor efficiency**, especially when solving complex PDEs such as the Navier–Stokes equations.
+
+This repository implements multiple **training-acceleration techniques** proposed in the related research/thesis, aiming to substantially improve the efficiency and accuracy of PINN-based PDE solvers.
+
+---
 
 
-The repository contains the implementations of the graduation design(thesis) entitled “Accelerated Training Methods of Physics-Informed Neural Networks” by Yuxin Hao. 
+## Methods
 
-Physics-Informed Neural Networks (PINN) is an innovative approach that combines deep learning techniques with classical physical laws. These neural networks not only rely on traditional data-driven learning but also incorporate prior knowledge of physical fields into their loss functions. This allows PINN to solve a wide range of complex physical problems, even with very limited observational data or no data at all, demonstrating broad application potential. However, in practical applications, the training process of PINN models often encounters issues such as slow convergence and low computational efficiency.
+This project focuses on enhancing PINNs for PDE solving—particularly for the Navier–Stokes equations—through improvements in sampling, loss design, and neural architectures.
 
-In this thesis, a PINN model is constructed based on the Navier-Stokes equations, and the model is optimized in several aspects:
+### **1. Adaptive Sampling Methods**
 
- - Sampling Methods: This study delves into adaptive sampling methods based on residuals. It first highlights the limitations of traditional fixed and random resampling techniques in handling complex PDE problems. Then, it introduces two adaptive strategies: RAR and RAD. RAR dynamically adds sampling points based on residual size, while RAD optimizes sampling data points according to the probability distribution of residuals, both aiming to improve the sampling distribution to accurately match the PDE solution. To address the computational efficiency and parameter tuning challenges in the RAD method, the R3 algorithm is proposed, effectively accelerating model convergence and enhancing prediction accuracy.
+- **RAR (Residual-based Adaptive Refinement)**  
+  Dynamically adds collocation points in high-residual regions.
 
- - Loss Function: To address the gradient imbalance issue in the parameter optimization process of PINN, this study introduces improvements to the loss function. First, the dynamic weights of the loss function are incorporated into the training process by leveraging the adaptability of neural networks, thus balancing the various components of the loss function adaptively. Subsequently, a novel Residual-Based Attention (RBA) mechanism is introduced. This mechanism dynamically weighs the sampling points based on the cumulative changes in residuals without requiring additional gradient calculations, further improving the solving efficiency and accuracy.
+- **RAD (Residual-based Adaptive Distribution)**  
+  Redistributes sampling points based on residual probability distribution.
 
- - Network Architecture: An improved Multi-Layer Perceptron (MLP) architecture is used, incorporating self-attention mechanisms to enhance the neural network's ability to capture interactions and deep representations of input features, thereby improving model performance.
+- **R3 (Retain–Resample–Release)**  
+  Addresses the inefficiency and high sensitivity of RAD by iteratively:
+  - Retaining high-error points  
+  - Resampling uncertain regions  
+  - Releasing outdated points  
+  → Achieves faster convergence and improved stability.
 
-Through these optimizations, the PINN model's convergence speed and computational efficiency are significantly enhanced.
+### **2. Improved Loss Functions**
 
+- **Dynamic Weighting**  
+  Automatically balances PDE residual loss and data loss during training.
 
-## Result
-<figure>
-    <figcaption>MSE Curve</figcaption>
-    <img src="./result/loss_curve/ablation_loss.png" width="100%" height="100%"/>
-</figure>
+- **RBA (Residual-Based Attention)**  
+  Assigns attention weights according to residual variations *without extra gradient computation*, improving robustness and accuracy.
 
-<table>
-    <tr>
-        <td>
-            <figure>
-                <figcaption>Exact solution: u </figcaption>
-                <img src="./result/solutions/u_star.png" width="100%" height="100%"/>
-            </figure>
-        </td>
-        <td>
-            <figure>
-                <figcaption>Fitting solution: u </figcaption>
-                <img src="./result/solutions/sa+rba+mmlp_u_pred.png" width="100%" height="100%"/>
-            </figure>
-        </td>
-        <td>
-            <figure>
-                <figcaption>Absolute error: u </figcaption>
-                <img src="./result/solutions/sa+rba+mmlp_u_error.png" width="100%" height="100%"/>
-            </figure>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <figure>
-                <figcaption>Exact solution: v </figcaption>
-                <img src="./result/solutions/v_star.png" width="100%" height="100%"/>
-            </figure>
-        </td>
-        <td>
-            <figure>
-                <figcaption>Fitting solution: v </figcaption>
-                <img src="./result/solutions/sa+rba+mmlp_v_pred.png" width="100%" height="100%"/>
-            </figure>
-        </td>
-        <td>
-            <figure>
-                <figcaption>Absolute error: v </figcaption>
-                <img src="./result/solutions/sa+rba+mmlp_v_error.png" width="100%" height="100%"/>
-            </figure>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <figure>
-                <figcaption>Exact solution: p </figcaption>
-                <img src="./result/solutions/p_star.png" width="100%" height="100%"/>
-            </figure>
-        </td>
-        <td>
-            <figure>
-                <figcaption>Fitting solution: p </figcaption>
-                <img src="./result/solutions/sa+rba+mmlp_p_pred.png" width="100%" height="100%"/>
-            </figure>
-        </td>
-        <td>
-            <figure>
-                <figcaption>Absolute error: p </figcaption>
-                <img src="./result/solutions/sa+rba+mmlp_p_error.png" width="100%" height="100%"/>
-            </figure>
-        </td>
-    </tr>
-</table>
+### **3. Network Architecture Enhancements**
+
+- **mMLP (Modified MLP)**  
+  A refined feed-forward architecture optimized for PDE learning.
+
+- **Self-Attention Integration**  
+  Enhances representation capability for complex spatial interactions.
+
+---
 
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/git/git-scm.com/blob/gh-pages/MIT-LICENSE.txt)
 
+---
 
-## Reference
+
+## References
  - Raissi M, Perdikaris P, Karniadakis G E. [Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations[J].](https://www.sciencedirect.com/science/article/abs/pii/S0021999118307125) Journal of Computational physics, 2019, 378: 686-707.
  - Wu C, Zhu M, Tan Q, et al. [A comprehensive study of non-adaptive and residual-based adaptive sampling for physics-informed neural networks[J].](https://www.sciencedirect.com/science/article/abs/pii/S0045782522006260) Computer Methods in Applied Mechanics and Engineering, 2023, 403: 115671.
  - Lu L, Meng X, Mao Z, et al. [DeepXDE: A deep learning library for solving differential equations[J].](https://epubs.siam.org/doi/abs/10.1137/19M1274067) SIAM review, 2021, 63(1): 208-228.
