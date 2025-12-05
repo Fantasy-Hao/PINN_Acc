@@ -10,8 +10,6 @@ However, vanilla PINNs often suffer from **slow convergence, training instabilit
 
 This repository implements multiple **training-acceleration techniques** proposed in the related research/thesis, aiming to substantially improve the efficiency and accuracy of PINN-based PDE solvers.
 
----
-
 
 ## Methods
 
@@ -30,7 +28,7 @@ This project focuses on enhancing PINNs for PDE solving—particularly for the N
   - Retaining high-error points  
   - Resampling uncertain regions  
   - Releasing outdated points  
-  → Achieves faster convergence and improved stability.
+
 
 ### **2. Improved Loss Functions**
 
@@ -48,13 +46,9 @@ This project focuses on enhancing PINNs for PDE solving—particularly for the N
 - **Self-Attention Integration**  
   Enhances representation capability for complex spatial interactions.
 
----
-
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/git/git-scm.com/blob/gh-pages/MIT-LICENSE.txt)
-
----
 
 
 ## References
