@@ -1,0 +1,418 @@
+%!TEX root = ../../csuthesis_main.tex
+\chapter{基于残差的自适应采样方法研究}
+
+PINN 主要针对 PDE 损失进行优化，保证训练后的网络与要求解的 PDE 一致。 PDE 损失是在一组分散的残差点处评估的。直观上，残差点对 PINN 的影响类似于网格点对有限元法的影响，因此这些残差点的位置和分布对于 PINN 的准确性和计算效率起着至关重要的作用。然而，以往的PINN研究中主要使用两种简单的残差点采样方法（等距均匀网格和均匀随机采样），忽略了残差点采样的重要性。均匀采样对于一些简单的偏微分方程效果很好，但对于某些更复杂的偏微分方程可能效率不高。为了提高准确性，可以使用非均匀的方法人工选择残差点，如Mao等 \cite{mao2020physics}处理高速流问题，但这种方法高度依赖问题。针对上述问题，本章首先简单介绍了传统的固定采样和随机重采样，然后重点分析了自适应非均匀采样方法。
+
+\section{固定采样与随机重采样}
+
+\subsection{固定采样}
+
+大多数的 PINN 在训练开始时就指定残差点，并且在训练过程中不再改变它们。常用的有两种简单的抽样方法：等距均匀网格和均匀随机抽样。其他采样方法如拉丁超立方采样 \cite{stein1987large}和Sobol序列 \cite{sobol1967distribution}也已经在一些研究 \cite{raissi2019physics,pang2019fpinns}中使用。 Sobol序列是一种准随机低差异序列。低差异序列通常用作均匀分布随机数的替代，并且通常在数值积分等许多应用中表现更好。还有其他低差异序列，包括 Halton 序列 \cite{halton1960efficiency}和 Hammersley 序列 \cite{hammersley1964monte}。
+
+\begin{itemize}
+    \item 等距均匀取样（Grid）将取样空间均匀地划分为格子，并在每个格子中取一个样本点。该方法易于理解和实现，但在高维空间下会面临指数级增长的问题，即格点数量过多，不适合高维数据。
+    \item 随机均匀取样（Random）通过在取样空间内随机选择样本点来表示整个空间。该方法适用于各种维度的数据，并且易于实现，但对于某些问题可能需要大量样本点才能保证采样的代表性。
+    \item 拉丁超立方取样（Latin Hypercube Sampling, LHS）是一种改进的随机取样方法，能保证每个维度内的样本点均匀分布且相互独立。该方法可以提高采样的效率和精度，特别适用于参数敏感型问题和灵敏度分析。
+    \item 索波尔序列（Sobol Sequence）是一种基于位运算的低差异序列，能够更好地填充采样空间并减少采样点之间的相关性。低差异序列适用于高维采样和蒙特卡洛模拟，能够提高模拟结果的准确性和稳定性。
+    \item 哈尔顿序列（Halton Sequence）是一种低差异序列，通过质数基底的递增序列生成，具有良好的分布特性和低差异性。
+    \item 哈默斯利序列（Hammersley Sequence）是一种类似哈尔顿序列的低差异序列，只是在第一维中，点之间等距，更容易计算。
+\end{itemize}
+
+使用上述六种方法在 $[0,1]^2$ 空间中生成400个点如图 \ref{fig:fixed_sampler}所示。
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[width=1.0\linewidth]{fixed_sampler.jpg}
+    \caption{使用不同的均匀采样方法在 $[0,1]^2$ 中生成 400 个点的示例 \cite{wu2023comprehensive}}
+    \label{fig:fixed_sampler}
+\end{figure}
+
+\subsection{随机重采样}
+
+在监督学习中，数据集在训练期间是固定的，但在 PINN 中，任何位置的点都可以用来评估 PDE 损失。因此，在每次优化迭代中，都可以重新选择一组新的残差点，每次采样点的具体方法可以从3.1.1节中讨论的方法中选择，甚至可以在不同时间使用不同的采样方法。本研究仅考虑带有重采样的随机采样（Random-R）。Random-R方法与Random方法相同，只是每 $N$ 次迭代对残差点进行重新采样,其中重采样周期 $N$ 也是训练时一个重要的超参数。
+
+\section{基于残差的自适应细化与分布}
+
+尽管大多数 PINN 采用均匀采样策略，但最近关于自适应非均匀采样策略的研究 \cite{nabian2021efficient}证明能够在训练过程中改善残差点的分布，得到更高的求解精度。本节主要对两种基于残差的自适应采样方法展开研究。
+
+\subsection{基于残差的自适应细化}
+
+残差点 $\mathcal{T} $ 通常随机分布在域中，这对于大多数情况都有效，但对于某些呈现陡峭梯度解的偏微分方程可能效率不高。以Burgers方程为例，应该在锐锋附近放置更多的点以更好地捕获不连续性。然而，为解未知的问题设计良好的残差点分布是困难的。为了克服这一挑战，Lu 等 \cite{lu2021deepxde}最早提出了一种基于残差的自适应细化（Residual-based Adaptive Refinement, RAR）方法来改善训练过程中残差点的分布（算法 \ref{alg:rar}）。具体来说，在每$N$次迭代后，RAR 在PDE残差
+\begin{equation}
+    \label{equ:pde_absolute}
+    \varepsilon(\mathbf{x})=|\frac{\partial \boldsymbol{\hat{u}}}{\partial t}(\boldsymbol{x}_r,t_r;\boldsymbol{\theta})+\mathcal{N}[\boldsymbol{\hat{u}}](\boldsymbol{x}_r,t_r;\boldsymbol{\theta})|
+\end{equation}
+较大的位置添加更多残差点, 重复添加直到平均残差
+\begin{equation}
+    \label{equ:pde_average}
+    \begin{aligned}
+        \overline{\varepsilon(\mathbf{x})}
+        & =\frac1{|\mathcal{T}_r|}\sum_{\boldsymbol{x}\in \mathcal{T}_r}\varepsilon(\mathbf{x}) \\
+        & =\frac1{|\mathcal{T}_r|}\sum_{\boldsymbol{x}\in \mathcal{T}_r}|\frac{\partial \boldsymbol{\hat{u}}}{\partial t}(\boldsymbol{x}_r,t_r;\boldsymbol{\theta})+\mathcal{N}[\boldsymbol{\hat{u}}](\boldsymbol{x}_r,t_r;\boldsymbol{\theta})|
+    \end{aligned}
+\end{equation}
+小于阈值 $\varepsilon _r$ 。RAR 只关注残差较大的点，因此它是一种贪心算法。
+
+\begin{algorithm}[h]
+    \caption{基于残差的自适应细化（RAR）}
+    \label{alg:rar}
+    \begin{algorithmic}[1]
+        \STATE 使用 3.1.1 节中的方法对初始残差点 $\mathcal{T}$ 进行采样；
+        \STATE 训练 PINN 进行一定次数的迭代；
+        \FOR {$i = 0$ 到 最大迭代次数}
+            \STATE 使用第 3.1.1 节中的一种方法采样一组密集点 $\mathcal{S}_0$ ；
+            \STATE 计算 $\mathcal{S}_0$ 中各点的PDE残差；
+            \STATE $\mathcal{S} \leftarrow$ 从 $\mathcal{S}_0$ 中选取残差最大的 $m$ 个点；
+            \STATE $\mathcal{T} \leftarrow \mathcal{T} \cup \mathcal{S}$； % 正确更新了集合合并操作
+            \STATE 对PINN再次进行一定数量的迭代训练；
+        \ENDFOR % 添加了ENDWHILE以结束循环
+    \end{algorithmic}
+\end{algorithm}
+
+\subsection{基于残差的自适应分布}
+
+在求解具有陡峭梯度的偏微分方程时， RAR 显著提高了 PINN 的性能。然而， RAR 主要关注 PDE 残差最大的位置，而忽略残差较小的位置。Wu等 \cite{wu2023comprehensive}在2021年提出了基于残差的自适应分布（Residual-based Adaptive Distribution, RAD）。该方法根据与 PDE 残差成比例的概率密度函数（Probability density function, PDF） $p(\mathbf{x})$ 对所有残差点进行重新采样。具体来说，对于任意点 $\mathbf{x}$ ，首先计算偏微分方程残差 $\varepsilon(\mathbf{x})=|\frac{\partial \boldsymbol{\hat{u}}}{\partial t}(\boldsymbol{x}_r,t_r;\boldsymbol{\theta})+\mathcal{N}[\boldsymbol{\hat{u}}](\boldsymbol{x}_r,t_r;\boldsymbol{\theta})|$ ，然后计算概率为
+\begin{equation}p(\mathbf{x})=\frac{\varepsilon(\mathbf{x})}{A},\end{equation}
+其中 $A=\int_\Omega\varepsilon(\mathbf{x})dx$ 是归一化常数。然后根据 $p(\mathbf{x})$ 对所有残差点进行采样。
+
+但这种计算残差概率分布的方法较为固定，不能灵活地应用于不同情况。遵循这个想法，Wu等 \cite{wu2023comprehensive}又提出了一种基于残差的自适应分布（RAD）方法（算法 \ref{alg:rad}），使用新的 PDF
+\begin{equation}p(\mathbf{x})\propto\frac{\varepsilon^q(\mathbf{x})}{\mathbb{E}[\varepsilon^q(\mathbf{x})]}+c,\end{equation}
+其中 $q\geq0$ 和 $c\geq0$ 是两个超参数。 $\mathbb{E}[\varepsilon^q(\mathbf{x})]$ 可以通过数值积分（例如蒙特卡罗积分）来近似。第 3.1.2 节中的 Random-R 方法是 RAD 的一个特例，相当于 $q = 0$ 或 $c \rightarrow 0$。
+
+\begin{algorithm}[h]
+    \caption{基于残差的自适应分布(RAD)}
+    \label{alg:rad}
+    \begin{algorithmic}[1]
+        \STATE 使用 3.1.1 节中的方法对初始残差点 $\mathcal{T}$ 进行采样；
+        \STATE 训练 PINN 进行一定次数的迭代；
+        \FOR{$i = 0$ 到 最大迭代次数}
+            \STATE $\mathcal{T} \leftarrow $ 根据方程的 PDF 随机采样的一组新点;
+            \STATE 对PINN再次进行一定数量的迭代训练；
+        \ENDFOR % 添加了ENDWHILE以结束循环
+    \end{algorithmic}
+\end{algorithm}
+
+在 RAD（算法 \ref{alg:rad} 第 4 行）中，需要根据 $p(\mathbf{x})$ 对一组点进行采样，当 $\mathbf{x}$ 是低维时，可以通过算法 \ref{alg:hard_rad} 的硬采样方式对点进行近似采样：
+
+\begin{algorithm}[h]
+    \caption{基于残差的自适应分布（硬采样）}
+    \label{alg:hard_rad}
+    \begin{algorithmic}[1]
+        \STATE 使用 3.1.1 节中的方法对初始残差点 $\mathcal{T}$ 进行采样；
+        \STATE 训练 PINN 进行一定次数的迭代；
+        \FOR {$i = 0$ 到 最大迭代次数}
+            \STATE 使用 3.1.1 节中的方法采样一组密集点 $\mathcal{S}_0$ ；
+            \STATE 计算 $\mathcal{S}_0$ 中各点 $p(\mathbf{x})$ ；
+            \STATE 定义概率质量函数 $\tilde{p}(\mathbf{x})=\frac{p(\mathbf{x})}A$ ，其归一化常数 $A=\sum_   {\mathbf{x}\in\mathcal{S}_0}p(\mathbf{x})$； 
+            \STATE $\mathcal{T} \leftarrow $ 根据 $\tilde{p}(\mathbf{x})$ 从 $\mathcal{S}_0$ 中采样点的子集。
+            \STATE 对PINN再次进行一定数量的迭代训练；
+        \ENDFOR % 添加了ENDWHILE以结束循环
+    \end{algorithmic}
+\end{algorithm}
+
+该方法简单、易于实现，足以解决许多偏微分方程问题。对于更复杂的情况，可以使用其他方法，例如逆变换采样、马尔可夫链蒙特卡罗方法和生成对抗网络 \cite{goodfellow2014generative}。
+
+图 \ref{fig:rad_parameter} 中的两个超参数 $q$ 和 $c$ 控制了 $p(\mathbf{x})$ 范围，从而控制采样点的分布。使用一个简单的 2D 示例来说明 $q$ 和 $c$ 的影响，
+\begin{equation}f(x,y)=2^{4a}x^a(1-x)^ay^a(1-y)^a,\end{equation}
+式中 $a = 10$ 。当 $q = 0$ 时， 残差点变成均匀分布。随着 $q$ 值的增加，残差点将更多地被采样到 PDE 残差较大的区域。随着 $c$ 值的增加，残差点呈现出均匀分布的倾向。与 RAR 相比，RAD 通过调整 $q$ 和 $c$ 提供了更大的自由度来平衡残差较大和较小位置的点。 $q$ 和 $c$ 的最佳值取决于具体问题，根据数值结果，$q = 1$ 和 $c = 1$ 的通常是一个较好的默认选择。
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[width=1.0\linewidth]{rad_parameter.jpg}
+    \caption{超参数 $q$ 和 $c$ 对 RAD 采样的影响 \cite{wu2023comprehensive}}
+    \label{fig:rad_parameter}
+\end{figure}
+
+\section{基于残差的保留-重采样-释放方法}
+
+在2023年，Daw等 \cite{daw2022mitigating}通过 PINN 传播假设，提出了 PINN 失效模式的新颖视角：为了使 PINN 避免收敛到内部点处的平凡解，正确的解必须从初始/边界点传播到内部点。当这种传播受到阻碍时，PINN 可能会陷入难以摆脱的琐碎解决方案，称为传播失败模式 \cite{daw2022mitigating}。通过研究发现，PINN 中的传播失败的特点是高度不平衡的 PDE 残差场，因此很难在每次迭代时充分表示搭配点集中的高残差区域，Hao等 \cite{hao2023pinnacle}在对 PINN 优化方法的调研中也表明 RAR 这类方法在面对许多问题时都没有达到理想的效果。Daw等 \cite{daw2022mitigating}随后提出通过保留-重采样-释放（Retain-Resample-Release, R3）的方法在 PINN 训练期间动态关注高残差区域的搭配点。
+
+\subsection{RAR方法的局限性}
+
+在使用时，RAR 方法存在两个问题，导致其可能出现传播失败现象。
+
+\subsubsection{计算复杂度高}
+
+RAR及其变体方法需要使用一组密集的采样点来定位高残差区域，保证来自高残差区域的点每 $N$ 次迭代就添加到训练集中。这从两个方面增加了计算成本。首先，计算整个稠密集上的偏微分方程残差是非常昂贵的。其次，训练集的大小每 $N$ 次迭代都会不断增长，进一步增加后续迭代的训练成本。
+
+\subsubsection{$q$ 和 $c$ 的值难以确定}
+
+面对不同的 PDE 时，虽然可以通过调整 $q$ 和 $c$ 的值达到更好的效果，但 $q$ 和 $c$ 的最佳值对于任意 PDE 是未知的。另一方面，在 PDE 的训练过程中， $q$ 和 $c$ 的最佳值也会变化。采用RAD方法在训练早期能够显著提升预测精度，但由于 $q$ 和 $c$ 的值不变，随着迭代次数增加，采样过度集中于残差大的区域，而忽视了残差较小的区域，导致训练后期陷入停滞。
+
+\subsection{保留-重采样-释放算法}
+
+Daw等 \cite{daw2022mitigating}提出了保留-重新采样-释放（R3）采样算法来解决先前工作中存在的问题，同时在训练期间有效地关注高残留区域以减轻传播失败。该算法具有三个关键属性，定义如下：
+
+\subsubsection{保留属性}
+
+为了避免传播失败，R3 在训练时首先保证对高残差区域的关注，确保采样点集在这些区域中积累，直到 PINN 训练最终解决它们。这与 RAR 方法在高残差区域不断增加采样点的思想相似。
+
+\subsubsection{重采样属性属性}
+
+在每次迭代中，R3 从整个定义域 $\varOmega $ 内进行均匀重采样，保证低残差区域的采样点非零，使得采样点不会塌陷到高残差区域，这是 RAR 方法的限制之一。
+
+\subsubsection{释放属性}
+
+通过 PINN 训练充分最小化高残差区域后，将该区域积累的采样点释放，使得 R3 可以在后续的迭代中专注于最小化其他高残差区域。如果不释放保留的点，搭配点集将持续增长，从而增加计算成本，并且之后的采样也会将偏向这些区域，这也是 RAR 方法的局限性。
+
+除了满足上述属性之外，与之前的工作相比，R3 算法在从高残差区域采样搭配点时也几乎没有计算开销，因为 R3 能够间接从高残差区域添加点，同时无需维护一组密集的采样点集，只需在每次迭代时观察一小组当前采样点集的残差。
+
+算法 \ref{alg:r3} 阐述了R3采样方法的伪代码。在初始化步骤中，从均匀分布中抽取$N_r$个点作为初始点集$\mathcal{T}_0$。训练迭代到第 $k$ 次时，为了更新点集进行下一轮迭代，首先构建“保留点集”$\mathcal{T}^r_k$，这一群体包含了来自$\mathcal{T}_k$且位于高残差区域的所有点。然后计算当前每一个采样点$x_r$的残差 $\varepsilon(\mathbf{x})=|\frac{\partial \boldsymbol{\hat{u}}}{\partial t}(\boldsymbol{x}_r,t_r;\boldsymbol{\theta})+\mathcal{N}[\boldsymbol{\hat{u}}](\boldsymbol{x}_r,t_r;\boldsymbol{\theta})|$ ，并计算$\overline{\varepsilon(\mathbf{x})}$作为$\mathcal{T}_k$中所有点的残差的期望。在$\mathcal{T}_k$中，若某点的残差函数值超过 $\overline{\varepsilon(\mathbf{x})}$ ，则该点被视为“保留点集”的一员，即$\mathcal{T}^r_k\leftarrow\{x^j_r:\varepsilon(x^j_r)>\overline{\varepsilon(\mathbf{x})}\}$。对于$\mathcal{T}_k$中残差函数值满足$\varepsilon(x^j_r)\leq\overline{\varepsilon(\mathbf{x})}$的其余配置点，则将其释放，并用重新均匀采样的点替换，由此构建“重采样点集”$\mathcal{T}^s_k\leftarrow\{x^j_r:x^j_r\sim U(\Omega)\}$。最后，将保留点集与重采样点集合并，以组成下一次迭代的点集$\mathcal{T}_{k+1}$。值得注意的是，每次迭代中的点集规模保持不变（等于$N_r$）。
+
+图 \ref{fig:r3_sampler}以示意图的方式展现了R3算法随训练迭代过程中的配置点动态变迁，等高线代表了残差大小。
+
+\begin{algorithm}[H]
+    \caption{保留-重采样-释放算法（R3 算法）}
+    \label{alg:r3}
+    \begin{algorithmic}[1]
+    \STATE 从均匀分布$\mathcal{U}(\Omega)$中对初始点集 $\mathcal{T}_0$ 进行采样，得到 $N_r$ 个配置点集合 $\mathcal{T}_0 \leftarrow \{\mathbf{x_r}\}_{i=1}^{N_r}$，其中 $\Omega$为输入域（$\Omega = [0, T] \times \mathcal{X}$）。
+    \FOR{$i = 0$ 到 最大迭代次数}
+      \STATE 计算配置点集$\mathcal{T}_{k}$中各点的残差函数$\varepsilon(\mathbf{x})=|\frac{\partial \boldsymbol{\hat{u}}}{\partial t}(\boldsymbol{x}_r,t_r;\boldsymbol{\theta})+\mathcal{N}[\boldsymbol{\hat{u}}](\boldsymbol{x}_r,t_r;\boldsymbol{\theta})|$
+      \STATE 计算阈值$\overline{\varepsilon(\mathbf{x})}=\frac1{|\mathcal{T}_r|}\sum_{\boldsymbol{x}\in \mathcal{T}_r}\varepsilon(\mathbf{x})$
+      \STATE 选择保留种群$\mathcal{T}^r_k$，使得$\mathcal{T}^r_k\leftarrow\{x^j_r:\varepsilon(x^j_r)>\overline{\varepsilon(\mathbf{x})}\}$
+      \STATE 生成重采样种群$\mathcal{T}^s_k\leftarrow\{x^j_r:x^j_r\sim U(\Omega)\}$，且确保$|\mathcal{T}^s_k| + |\mathcal{T}^r_k| = N_r $
+      \STATE 合并这两个种群$\mathcal{T}_{k+1} \leftarrow \mathcal{T}^r_{k} \cup \mathcal{T}^s_{k}$
+    \ENDFOR
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[width=\textwidth]{r3_sampler.png}
+    \caption{ R3 采样算法示意图 \cite{daw2022mitigating}}
+    \label{fig:r3_sampler}
+\end{figure}
+
+\subsection{理论证明}
+
+虽然 RAD 方法在一定程度上也实现了重采样时的三个属性：保留、重新采样和释放，但 R3 采样方法能够在计算效率较高的情况下满足所有这些属性，即无需通过密集采样来估计残差分布情况，下面从理论上验证R3满足三个采样属性的能力。
+
+\subsubsection{保留属性}
+
+定理 \ref{theorem:expectation_retained_pop} 表明，当固定 $\varepsilon(\mathbf{x})$（例如，当 $\theta$ 保持不变时），随着迭代次数趋于 $\infty$，R3 采样中保留点集的期望值达到最大。
+
+\begin{theorem}[动态累积定理]
+\label{theorem:expectation_retained_pop}
+    设 $\varepsilon(\mathbf{x}):\mathbb{R}^n \rightarrow \mathbb{R}^+$ 为 R3 采样算法优化时使用的固定实值 $ l$-利普希茨连续目标函数。则对于任意小的 $\varepsilon _r$，当迭代次数 $k \rightarrow \infty$ 时，保留点集的期望值 $\mathbb{E}_{\mathbf{x} \in \mathcal{T}^r}[\varepsilon(\mathbf{x})] \geq \max_\mathbf{x} \varepsilon(\mathbf{x}) - l\varepsilon _r$。
+\end{theorem}
+
+定理\ref{theorem:expectation_retained_pop}展示了 R3 采样方法的“保留属性”。在模型动态优化过程中，来自高残差区域的采样点在保留点集$\mathcal{T}^r$中不断累积，直至优化算法充分最小化该区域的残差。随后，这些点将从保留集$\mathcal{T}^r$中被逐步释放。此过程体现了采样与优化之间的动态平衡，推动模型向更精确的解决方案收敛。
+
+\subsubsection{重采样属性}
+
+定理 \ref{theorem:uniform_background} 指出，重采样点集 $\mathcal{T}^s$ 的大小始终大于零，即每次更新点集都有来自定义域$\varOmega $内均匀分布的采样点被添加，从而防止 R3 采样算法塌陷到高残差区域。
+
+\begin{theorem}[非空定理]
+\label{theorem:uniform_background}
+    对于任意一组实数，该组中总存在一些小于或等于平均值​​的元素。即总是存在某个点 $ \mathbf{x} \in \mathcal{T}$ 使得 $\varepsilon(\mathbf{x}) \leq \overline{\varepsilon(\mathbf{x})}$ ，因此非保留点集的大小始终不为零，$|\overline{\mathcal{T}^r}| > 0$。根据定义，由于重新采样的总体 $\mathcal{T}^s$ 在每次迭代中都会替换非保留总体，$|\mathcal{T}^s| = |\overline{\mathcal{T}^r}|$。因此，$|\mathcal{T}^s| > 0$，即重采样点集的大小始终不为零。
+\end{theorem}
+
+\subsubsection{释放属性}
+
+定义在任意迭代 $k$，若配置点 $\mathbf{x_r} \in \mathcal{T}_k$ 的残差小于 $\overline{\varepsilon(\mathbf{x})}$，即 $\varepsilon(\mathbf{x}) \leq \overline{\varepsilon(\mathbf{x})}$，则称该点已被“充分最小化”。依据定义，$\mathbf{x_r}$ 属于“非保留点集”，将从点集 $\mathcal{T}_k$ 中“释放”并由从均匀分布中重新采样的新点取代。因此，R3 采样满足“释放特性”。
+
+\section{实验分析}
+
+本节实验基于第 2.3.2 节的模型框架，仅在采样环节使用不同的采样策略，对比不同方法对模型收敛速度及最终性能的影响。为了保证不同方法的参数计算量相同，更好地衡量不同方法的收敛速度，本实验设置固定采样和重采样的数据点均为1000，且重采样方法每1000次Adam迭代就对训练数据点进行一次更新，总计进行10万次Adam迭代优化，其他超参数设置与第 2.3.2 节相同。
+
+表 \ref{tab:sampler_tab}记录了迭代4万次和10万次时不同采样方法的$L^2$相对误差。
+
+\begin{table}[htbp]
+    \centering
+    \caption{不同采样方法的$L^2$相对误差}
+    \label{tab:sampler_tab}
+    \begin{tabular}{@{}lcccccc@{}}
+        \toprule
+        \multirow{2}{*}{方法} & \multicolumn{3}{c}{迭代次数：40k} & \multicolumn{3}{c}{迭代次数：100k} \\
+                 & $u$     & $v$     & total   & $u$     & $v$     & total   \\
+        \midrule
+        固定采样  & 2.181   & 3.805   & 5.986   & 2.002   & 3.224   & 5.226   \\
+        随机重采样  & 0.731   & 2.110   & 2.841   & 0.372   & 1.045   & 1.417   \\
+        RAD  & \textbf{0.608}   & 1.745   & 2.353   & \textbf{0.356}   & 1.100   & 1.456   \\
+        R3  & 0.642  & \textbf{1.656}  & \textbf{2.298}  & 0.359  & \textbf{0.913}  & \textbf{1.272}\\ 
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+首先，重采样方法在参数量较少的情况下显著优于传统的固定采样方法。每次迭代时，通过对数据集进行重采样，模型能够接触到的数据分布范围更广，有效避免了因重复学习同一固定数据点集而可能导致的过拟合问题，提升了模型的泛化能力。随着迭代次数增加，重采样方法的优势进一步扩大。在早期迭代阶段，模型主要学习数据的基本结构和简单规律；随着训练的深入，重采样方法使得模型每一次迭代都能接触到新的训练数据组合，不仅巩固和修正了已经学习到的数据特征，而且进一步提取到了数据中更为精细和鲁棒的特征表示，确保模型能够持续优化，接近其最优性能。
+
+基于残差的自适应分布（RAD）方法有两个关键的超参数$q$和$c$，根据经验，将其设置为$q=1$和$c=1$。RAD在训练前期对于提升模型精度有显著效果，且对于流向速度$u(t,x,y)$的预测始终最优。在使用非自适应采样方法训练PINN模型时，残差大的区域通常具有复杂的梯度变化，是模型拟合的难点所在。RAD使模型专注于这些残差较大的区域，如图 \ref{fig:sampler_u} 和 \ref{fig:sampler_v} 所示，在靠近圆柱体、具有复杂流体动力学特性的区域（$x$\rightarrow 1）拟合效果明显优于其他方法，体现了该方法的针对性和有效性。但迭代次数到达10万次时，RAD的局限性开始展现，其过度集中的采样策略导致训练后期忽视了对残差较小区域的拟合，造成这些区域的误差相对增大。此阶段，模型应将学习重点转移至之前未充分拟合的区域以促进全局优化，RAD固定的$q$和$c$值限制了其自适应调节采样规则的能力，未能适时调整以适应训练后期的需求，阻碍了进一步的优化，导致训练出现瓶颈。此外，在更新点集的过程中，RAD方法通过蒙特卡洛方法计算整个稠密点集上的偏微分方程残差，产生了较大的计算负担，也是该方法不容忽视的缺陷。
+
+基于残差的保留-重采样-释放方法（R3）实现了对精度和效率的兼顾。在迭代4万次和10万次的情况下，R3方法的总体误差始终最小。R3方法同RAD方法一样，首先保持对高残差区域的关注，通过点集在高残差区域的积累，使模型在训练过程中优先完成高残差区域的拟合。但在更新点集的过程中，R3方法不再需要维护稠密的残差点集，通过均匀采样能够确保新的数据点从整个定义域$\varOmega$内非零采样，进一步保证训练后期采样点不会塌陷到高残差区域。
+
+\begin{figure}[!htb]
+    \centering
+    % 第一行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{u_star.png}
+            \caption{$u$精确值}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第二行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{fixed_u_pred.png}
+            \caption{$u$预测值:固定采样}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{fixed_u_error.png}
+            \caption{$u$绝对误差:固定采样}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第三行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{dynamic_u_pred.png}
+            \caption{$u$预测值:随机重采样}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{dynamic_u_error.png}
+            \caption{$u$绝对误差:随机重采样}
+        \end{minipage}
+    \end{subfigure}%
+
+    % 第四行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{rad_u_pred.png}
+            \caption{$u$预测值:RAD}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{rad_u_error.png}
+            \caption{$u$绝对误差：RAD}
+        \end{minipage}
+    \end{subfigure}%
+
+    % 第五行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{r3_u_pred.png}
+            \caption{$u$预测值:R3}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{r3_u_error.png}
+            \caption{$u$绝对误差:R3}
+        \end{minipage}
+    \end{subfigure}%
+
+    \caption{不同采样方法对$u$的预测值和绝对误差}
+    \label{fig:sampler_u}
+\end{figure}
+
+
+\begin{figure}[!htb]
+    \centering
+    % 第一行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{v_star.png}
+            \caption{$v$精确值}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第二行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{fixed_v_pred.png}
+            \caption{$v$预测值:固定采样}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{fixed_v_error.png}
+            \caption{$v$绝对误差:固定采样}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第三行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{dynamic_v_pred.png}
+            \caption{$v$预测值:随机重采样}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{dynamic_v_error.png}
+            \caption{$v$绝对误差:随机重采样}
+        \end{minipage}
+    \end{subfigure}%
+
+    % 第四行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{rad_v_pred.png}
+            \caption{$v$预测值:RAD}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{rad_v_error.png}
+            \caption{$v$绝对误差：RAD}
+        \end{minipage}
+    \end{subfigure}%
+
+    % 第五行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{r3_v_pred.png}
+            \caption{$v$预测值:R3}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{r3_v_error.png}
+            \caption{$v$绝对误差:R3}
+        \end{minipage}
+    \end{subfigure}%
+
+    \caption{不同采样方法对$v$的预测值和绝对误差}
+    \label{fig:sampler_v}
+\end{figure}

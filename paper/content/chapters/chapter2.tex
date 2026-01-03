@@ -1,0 +1,375 @@
+%!TEX root = ../../csuthesis_main.tex
+\chapter{物理信息神经网络模型}
+
+\section{深度神经网络}
+
+人工神经网络的灵感最早来源于生物学，旨在模仿人脑神经元的运作方式进行解析、决策与学习。1943年，McCulloch与Pitts\cite{mcculloch1943logical}首次将生物神经网络抽象化，对神经活动的信息处理模式进行了建模。通过模仿神经活动的兴奋和抑制状态，将神经元及其相互关系用命题逻辑处理，构建了最早的人工神经网络模型。1958年，Rosenblatt\cite{rosenblatt1958perceptron}成功将其发明的感知器算法应用于简单的模式识别任务，引领了神经网络领域的首次重大突破。随后，在1983年，加州理工学院的Hopfield\cite{hopfield1982neural}运用神经网络技术，通过电路仿真手段解决了旅行商问题，为神经网络的第二次快速发展提供了强大推力。1986年，Rumelhart等\cite{rumelhart1986learning}引入误差反向传播算法，为后续神经网络技术的迅猛发展奠定了坚实的基础。进入21世纪，随着计算机性能的提升和GPU加速技术的发展，计算效率不再构成神经网络发展的瓶颈。在此背景下，深度神经网络（Deep Neural Networks, DNN）在计算机视觉\cite{krizhevsky2012imagenet}、自然语言处理\cite{devlin2018bert}和推荐系统\cite{cheng2016wide}等领域均表现出了优异的成绩。近几年，深度神经网络越来越多地被用来解决经典应用数学问题，例如偏微分方程。神经网络的通用逼近性和出色的表达能力，能够有效地捕捉和表示复杂系统内部的非线性映射关系，构建高效的动态系统预测模型。
+
+\subsection{基本原理}
+
+深度神经网络 \cite{lecun2015deep}是一种多层次的人工神经网络模型，通过多层神经元堆叠和复杂的连接模式来学习和表示数据的高阶特征。按照层的位置，可以将DNN的神经网络结构分成三个部分：输入层、隐藏层和输出层。其中隐藏层是深层神经网络的核心，负责对输入数据进行多层次的转换和特征提取，提高隐藏层数目可以增加网络的复杂度和输出的非线性程度。通过选取适当的激活函数以及隐藏层个数，深度神经网络可以逼近任意函数。
+
+设 $a^L(\mathbf{x}):\mathbb{R}^{d_{\mathrm{in}}}\to\mathbb{R}^{d_{\mathrm{out}}}$ 为 $L$ 层神经网络，第 $\ell$ 层有 $N_\ell$ 个神经元，分别用 $W^\ell\in\mathbb{R}^{N_\ell\times N_{\ell-1}}$ 和 $\mathbf{b}^\ell\in\mathbb{R}_\ell^N$ 表示第 $\ell$ 层的权重矩阵和偏置向量。给定一个非线性激活函数 $\sigma$ ，DNN递归定义如下：
+\begin{equation}
+    \begin{aligned}
+        &\text{输入层：}a^{0}(\mathbf{x})=\mathbf{x}\in\mathbb{R}^{d_{\mathrm{in}}},\\
+        &\text{隐藏层：}a^{\ell}(\mathbf{x})=\sigma(\boldsymbol{W}^{\ell}a^{\ell-1}(\mathbf{x})+b^{\ell})\in\mathbb{R}^{N_{\ell}},1\leq\ell\leq L-1,\\
+        &\text{输出层：}a^{L}(\mathbf{x})=W^{L}a^{L-1}(\mathbf{x})+b^{L}\in\mathbb{R}^{d_{\mathrm{out}}}.
+    \end{aligned}
+\end{equation}
+
+\subsection{初始化方法}
+
+神经网络结构确定后，首先需要对模型中的可训练参数进行初始化。对于简单的模型，如逻辑回归 \cite{kleinbaum2002logistic}，当选择交叉熵作为损失函数时，有唯一的极小值点，因此参数的初始化方式相对灵活，可以采用全零初始化。然而，对于更为复杂的神经网络，随着网络层数的增加和非线性特性的累积，模型的损失函数会变得极为复杂，形成非凸函数。这时，选择合适的初始化参数就变得尤为重要，因为这将直接影响模型在训练过程中特征提取的能力以及是否能收敛到全局最优。
+
+神经网络本质上是一个从样本空间到类别空间的大型映射函数，神经网络训练的目标是找到一个稳定且准确的映射。当样本空间和类别空间之间存在显著的差异时，比如样本空间更为稀疏，那么从类别空间反向传播回来的误差在传递至样本空间后可能会变得微不足道，导致模型的训练速度极为缓慢。相反，如果样本空间更为稠密，那么类别空间的误差可能会导致样本空间产生剧烈的震荡。为了解决这一问题，常规的随机初始化方法可能并不适用。因此，Glorot等 \cite{glorot2010understanding}提出了一个观点：为了确保网络中信息的有效流动，每一层输出的激活值以及状态梯度的方差应当尽量保持一致。其数学表达式为：
+\begin{equation}Var(a^{\ell})=Var(a^{\ell+1}),\end{equation}
+\begin{equation}Var(\frac{\partial Loss}{\partial z^{\ell}})=Var(\frac{\partial Loss}{\partial z^{\ell+1}}),\end{equation}
+其中$ z^{\ell} = \boldsymbol{W}^{\ell}a^{\ell-1}(\mathbf{x})+b^{\ell} $，$ Loss $为损失函数。
+
+通过对研究问题的简化，作出如下假设：
+\begin{itemize}
+    \item 激活函数在0附近的一阶导数接近1（如$tanh$函数）；
+    \item 偏置项$\boldsymbol{b}$初始期望为0；
+    \item 参数$\boldsymbol{W}$初始化期望均为0。
+\end{itemize}
+基于上述假设，考虑$L$层深度神经网络，激活值和状态梯度的方差分别有如下表达式：
+\begin{equation}Var(a^{\ell})=Var(x)\prod_{k=0}^{\ell} N_{k}Var(W^k),\end{equation}
+\begin{equation}Var(\frac{\partial Loss}{\partial z^{\ell}})=Var(\frac{\partial Loss}{\partial z^L})\prod_{k=\ell}^L N_{k+1}Var(W^k),\end{equation}
+将（2-4）、（2-5）代入到（2-2）、（2-3）中，可以获得如下条件：
+\begin{equation}\left.\left\{\begin{array}{l}N_\ell Var(\boldsymbol{W}^\ell)=1,\\N_{\ell+1}Var(\boldsymbol{W}^\ell)=1,\end{array}\right.\right.\end{equation}
+在实际情况中，相邻连接层的神经元个数不一定相等，于是取均值来近似满足上述等式：
+\begin{equation}Var(W^\ell)=\frac2{N_\ell+N_{\ell+1}},\end{equation}
+最后可以得出该方差对应如下均匀分布，即Xavier初始化：
+\begin{equation}\boldsymbol{W}^l\sim\boldsymbol{U}\left[-\frac{\sqrt{6}}{\sqrt{N_\ell+N_{\ell+1}}},\frac{\sqrt{6}}{\sqrt{N_\ell+N_{\ell+1}}}\right].\end{equation}
+
+\subsection{优化算法}
+
+对网络参数进行适当初始化赋值后，可以通过最小化损失函数得到合适的网络参数，使得神经网络能够拟合所需要的解。在1.2.4节中介绍了两种针对PINN模型中优化算法的改进方法。由于本文中并未在该方向展开研究，因此在本节中介绍两种PINN常用的优化算法：Adam和L-BFGS算法，对于大部分问题可以很好的求解。
+
+\subsubsection{Adam算法}
+
+Adam优化算法（Adaptive Moment Estimation）是一种广泛应用于深度学习和机器学习领域的高效优化技术，由Diederik P. Kingma和Jimmy Lei Ba在2014年提出，并在2015年的国际学习表征会议（ICLR）上发表 \cite{kingma2014adam}。Adam结合了动量（Momentum）和RMSProp（Root Mean Square Propagation）算法的优点，为每个参数自适应地调整学习率，从而加速训练过程并提高模型性能。
+
+Adam的核心思想在于同时利用梯度的一阶矩（梯度本身）和二阶矩（梯度平方，反映梯度变化的速率）来调整学习率。具体来说，Adam算法维护了两个状态变量，分别是对梯度的一阶矩估计$m_t$和对梯度平方的二阶矩估计$v_t$，并使用指数移动平均的方式进行更新：
+\begin{itemize}
+    \item 一阶矩估计（$ m_t $）：
+    \begin{equation}v_t=\beta_1v_{t-1}+(1-\beta_1)\nabla J(\theta_t),\end{equation}
+    其中，$\beta_1$是一个介于0和1之间的衰减因子，用于控制历史梯度的影响。
+    \item 二阶矩估计（$ v_t $）：
+    \begin{equation}v_t=\beta_2v_{t-1}+(1-\beta_2)(\nabla J(\theta_t))^2,\end{equation}
+    类似地，$\beta_2$也是衰减因子，用于控制梯度平方的历史影响。
+\end{itemize}
+为了消除初期偏置（初始时刻 $m_0$ 和 $v_0$ 为0导致的偏移），通常会对这两个变量进行偏差修正：
+\begin{equation}\hat{m}_t=\frac{m_t}{1-\beta_1^t},\end{equation}
+\begin{equation}\hat{v}_t=\frac{v_t}{1-\beta_2^t},\end{equation}
+随后，利用修正后的一阶矩和二阶矩来更新模型参数$ \theta $
+\begin{equation}\theta_{t+1}=\theta_t-\alpha\frac{\hat{m}_t}{\sqrt{\hat{v}_t}+\epsilon},\end{equation}
+其中， $\alpha$ 是学习率，是动量和梯度二阶矩的衰减率， $\epsilon$ 是为了数值稳定性而添加的小常数。
+
+Adam算法具有自适应学习率和动量法的优点，能够更快地收敛到较好的解决方案，提高优化的效率和稳定性。但在使用时需要谨慎选择学习率和动量的参数，避免学习率过高导致震荡或过低导致收敛速度过慢的问题。
+
+\subsubsection{L-BFGS算法}
+
+L-BFGS（Limited-memory Broyden-Fletcher-Goldfarb-Shanno）算法是一种迭代优化算法，主要用于求解无约束的非线性优化问题，特别是机器学习和深度学习领域中模型参数的优化。它是BFGS算法的一种内存限制版本，旨在解决大规模问题时的存储和计算效率问题 \cite{liu1989limited}。
+
+BFGS算法属于拟牛顿法，这类算法旨在通过迭代逼近目标函数的Hessian矩阵的逆，以此来寻找函数的最小值点。BFGS算法通过保持一个正定矩阵$H_k$来近似Hessian逆，并在每一步迭代中根据最新的梯度信息更新这个矩阵，以保证搜索方向的良好性质。然而，BFGS需要存储整个Hessian矩阵的逆，这在高维问题中非常消耗内存。
+
+L-BFGS算法解决了BFGS算法内存消耗大的问题。它不直接存储Hessian矩阵或其逆，而是采用一种有限记忆的技术，仅保留最近几次迭代的梯度向量和位置信息。利用这些信息，通过两个向量的线性组合来近似Hessian逆的更新，这大大减少了存储需求，同时仍能保持较好的优化性能。
+
+在每一步迭代中，L-BFGS算法执行以下步骤：
+\begin{itemize}
+    \item 计算搜索方向：通过L-BFGS算法的内存中存储的历史梯度和参数变化来近似估计Hessian矩阵的逆，得到搜索方向。
+    \item 线搜索：利用线搜索或其他方法找到一个合适的步长 $\alpha$ 使得沿搜索方向移动后的函数值下降最多；
+    \item 更新位置：根据搜索方向和步长更新参数 $\theta$ ;
+    \item 更新记忆：将最新的梯度和位置信息加入记忆队列，并根据设定的最大记忆长度丢弃最早的信息。
+\end{itemize}
+
+L-BFGS算法是一种高效的记忆受限优化方法，通过有限存储历史梯度信息显著降低了内存需求，同时利用这些信息快速逼近最优解，尤其适合大规模参数优化，自动确定迭代步长以加速收敛；但面对非凸或非光滑问题及高维场景时，需注意初始化选择、可能的局部极小化陷阱及合理配置内存大小，以确保优化效果和效率。
+
+\section{物理信息神经网络}
+
+早在神经网络发展时期，人们就已经开始考虑利用其高度非线性以及无限逼近理论来求解偏微分方程。1988年，Lagaris等 \cite{lagaris1998artificial}率先提出使用人工神经网络求解具有初边值条件的常微分方程和偏微分方程。随着深度学习算法在多个领域的成功应用 \cite{krizhevsky2012imagenet,devlin2018bert,cheng2016wide}, 国内外学者在基于神经网络的偏微分方程求解方法研究上再一次取得了系列突破, 提出了很多新方法。Raissi等人 \cite{raissi2019physics}指出，对于许多与物理和生物系统建模有关的案例，存在大量当前未在机器学习实践中使用的先验知识。这些先验知识可以充当神经网络的正则化处理，使得映射的空间域限制在可控的范围内。基于上述理论，Raissi等人 \cite{raissi2019physics}分别建立了连续和离散的基于物理信息的神经网络模型（PINN），并将其用于处理正问题和反问题。
+
+\subsection{基本原理}
+
+PINN的主要目标是使用已知的物理知识和数据来求解物理系统。假设系统可以用以下偏微分方程（PDE）描述：
+\begin{equation}
+    \label{eq:pde}
+    \boldsymbol{u}_t+\mathcal{N}[\boldsymbol{u}]=0,t\in[0,T],\boldsymbol{x}\in\Omega,
+\end{equation}
+受以下边界条件（BC）和初始条件（IC）影响：
+\begin{equation}\label{eq:bc}\mathcal{B}[\boldsymbol{u}]=0,t\in[0,T],\boldsymbol{x}\in\partial\Omega,\end{equation}
+\begin{equation}\label{eq:ic}\boldsymbol{u}(\boldsymbol{x},0)=g(x),\boldsymbol{x}\in\Omega,\end{equation}
+其中 $\mathcal{N}[·]$ 是线性或非线性微分算子，$\mathcal{B}[·]$ 是对应于 Dirichlet、Neumann、Robin 或周期性边界条件的边界算子。此外，$\boldsymbol{u}$ 描述了由方程（\ref{eq:pde}）的 PDE 系统控制的未知潜在解。
+
+如图 \ref{fig:PINN}所示，为了求解物理系统，PINN 使用神经网络来近似偏微分方程的解。为了训练满足方程中所有约束的神经网络。PINN将方程转换为损失函数，定义如下：
+
+\begin{equation}
+    \label{eq:pde_loss}
+    \mathcal{L}_r(\boldsymbol{\theta};\mathcal{T} _r)=\frac1{|\mathcal{T}_r|}\sum_{\boldsymbol{x}\in \mathcal{T}_r}\|\frac{\partial \boldsymbol{\hat{u}}}{\partial t}(\boldsymbol{x}_r,t_r;\boldsymbol{\theta})+\mathcal{N}[\boldsymbol{\hat{u}}](\boldsymbol{x}_r,t_r;\boldsymbol{\theta})\|^2,
+\end{equation}
+
+\begin{equation}
+    \label{eq:bc_loss}
+    \mathcal{L}_b(\boldsymbol{\theta};\mathcal{T} _b)=\frac1{|\mathcal{T}_b|}\sum_{\boldsymbol{x}\in \mathcal{T}_b}\|\mathcal{B}[\boldsymbol{\hat{u}}](\boldsymbol{x}_b,t_b;\boldsymbol{\theta})\|^2,
+\end{equation}
+
+\begin{equation}
+    \label{eq:ic_loss}
+    \mathcal{L}_i(\boldsymbol{\theta};\mathcal{T} _i)=\frac1{|\mathcal{T}_i|}\sum_{\boldsymbol{x}\in \mathcal{T}_i}\|\boldsymbol{\hat{u}}(\boldsymbol{x}_i,0)-\boldsymbol{g}(\boldsymbol{x}_i)\|^2,
+\end{equation}
+
+\begin{equation}
+    \label{eq:data_loss}
+    \mathcal{L}_s(\boldsymbol{\theta};\mathcal{T} _s)=\frac1{|\mathcal{T}_s|}\sum_{\boldsymbol{x}\in \mathcal{T}_s}\|\hat{\boldsymbol{u}}(\boldsymbol{x}_s,t_s;\boldsymbol{\theta})-\boldsymbol{u}_s\|^2,
+\end{equation}
+其中$ \mathcal{L}_r $是偏微分方程的剩余损失，$ \mathcal{L}_b $是边界条件的损失，$ \mathcal{L}_i $是初始条件的损失，$ \mathcal{L}_s $是数据损失。$ \hat{u} $是参数$ \boldsymbol{\theta} $的神经网络的预测，$\mathcal{T}_r$、$ \mathcal{T}_b $ 、$ \mathcal{T}_i $、$ \mathcal{T}_s $是采样点。
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[width=1.0\linewidth]{PINN.png}
+    \caption{PINN示意图}
+    \label{fig:PINN}
+\end{figure}
+
+PINN 的总体训练目标函数被定义为四部分损失的加权和：
+\begin{equation}
+    \label{eq:loss}
+    \begin{aligned}
+        \mathcal{L}(\boldsymbol{\theta};\mathcal{T})
+        & =\lambda_r\mathcal{L}_r(\boldsymbol{\theta};\mathcal{T}_r)+ \lambda_b\mathcal{L}_b(\boldsymbol{\theta};\mathcal{T}_b) \\ 
+        & +\lambda_i\mathcal{L}_i(\boldsymbol{\theta};\mathcal{T}_i)+ \lambda_{s}\mathcal{L}_s(\boldsymbol{\theta};\mathcal{T}_s),
+    \end{aligned}
+\end{equation}
+其中 $\lambda_r$ ， $\lambda_b$ ， $\lambda_i$ ， $\lambda_s$ 是不同损失的非负权重。
+
+算法 \ref{alg:PINN}给出了求解PDE的PINN算法伪代码。
+
+\begin{algorithm}[h]
+    \caption{求解PDE的PINN算法}
+    \label{alg:PINN}
+    \begin{algorithmic}[1]
+        \STATE 构建神经网络 $\hat{u}(\mathbf{x};\boldsymbol{\theta})$ ，参数为 $\boldsymbol{\theta} $；
+        \STATE 指定PDE、边界条件 $\mathcal{T}_{b}$ 和初始条件 $\mathcal{T}_{i}$ ;
+        \STATE 将数据损失$\mathcal{T}_{s}$、 PDE 损失$\mathcal{T}_{r}$、边界条件损失$\mathcal{T}_{b}$和初始条件损失$\mathcal{T}_{i}$的加权 $L^{2}$ 范数相加，确定损失函数；
+        \STATE 训练神经网络，通过最小化损失函数 $\mathcal{L}(\boldsymbol{\theta};\mathcal{T})$ 来找到最佳参数 $\boldsymbol{\theta}^{*}$ ；
+    \end{algorithmic}
+\end{algorithm}
+
+\subsection{PINN与传统机器学习的区别}
+
+PINN与传统机器学习方法的主要区别在于它们对数据和物理知识的利用方式：
+
+\subsubsection{物理信息的融合}
+
+PINN在训练过程中结合了物理定律，将物理先验知识以损失函数的形式融入模型，确保模型预测结果符合物理规律。而传统机器学习通常忽视物理约束，主要依赖从大量数据中学习模式和关系。
+
+\subsubsection{对数据的依赖性}
+
+虽然PINN也需要数据进行训练，但因其融合了物理知识，在数据不足或质量不高时仍能保持较好的预测性能。相比之下，传统机器学习尤其是监督学习方法对大量高质量标记数据的需求较高，数据稀缺或标注成本高时模型性能易受影响。
+
+\subsubsection{泛化能力}
+
+由于PINN整合了物理定律，在面对新问题或数据分布变化时具有更强的泛化能力，即使在数据稀缺情况下也能保持对物理现象的合理预测。而传统机器学习模型在缺乏相关数据的情况下可能难以准确预测新的、远离训练分布的数据点。
+
+\subsubsection{问题适用性}
+
+PINN适用于解决可以明确用物理定律描述的问题，如流体力学、结构分析等科学计算和工程领域问题。相反，传统机器学习广泛应用于计算机视觉、自然语言处理、推荐系统等物理定律未知或难以描述的问题场景。
+
+综上，PINN通过结合物理知识增强了模型在解释性和泛化能力上的优势，特别是在物理规律主导的问题上表现突出；而传统机器学习更侧重于基于大量数据驱动的学习过程。
+
+\subsection{PINN的优势}
+
+在反问题计算方面，深度学习方法相较于传统数值方法展现出显著优势。传统数值方法在处理已知边界条件和控制方程的正问题时效率和精度均优于PINN，但面对反问题情境，如参数未知、边界条件不完整且仅拥有部分测量数据的情况时，其效率相对较低。与此相反，深度学习能够构建出融合数据驱动与物理规律约束的双驱动模型，提高了基于数据同化的反问题求解效率。
+
+在对快速推断的需求上，深度学习方法也更加突出。对于一些数值问题，研究者无需深入理解和应用复杂的数值格式进行推导求解，借助物理损失函数即可直接获得可靠的参考解。此外，在实际应用中，当面临频繁变动的问题边界或多元动态变化源的情况时，预先通过类似Lulu等学者提出的DeepONet \cite{lu2021learning}等物理驱动神经网络方法进行训练，可在推断阶段实现高效而准确的实时预测。
+
+最后，对于高维度问题，深度学习也展现出了潜在的优势。相较于传统数值方法在高维空间中可能遭遇的计算瓶颈和难度提升，深度学习技术能更好地适应并挖掘潜在的复杂关系，从而为高维反问题提供有效解决方案。
+
+\section{N-S方程求解的PINN模型框架}
+
+\subsection{Navier–Stokes方程简介}
+
+Navier-Stokes方程是描述流体力学中流体运动的基本方程之一，可用于对天气、洋流、管道中的水流以及机翼周围的气流进行建模。Navier-Stokes方程包括了三个方程：质量守恒方程、动量守恒方程和能量守恒方程。质量守恒方程描述了流体的质量在空间和时间上的变化，动量守恒方程描述了流体的动量变化，而能量守恒方程则描述了流体的能量转移和变化。
+
+Navier-Stokes方程的数学表达式如下：
+\begin{itemize}
+    \item 质量守恒方程：
+    \begin{equation}\frac{\partial\rho}{\partial t}+\nabla\cdot(\rho\mathbf{v})=0,\end{equation}
+    其中，$\rho $是流体的密度，$t$是时间，$\mathbf{v}$是流体的速度。
+    \item 动量守恒方程：
+    \begin{equation}\frac{\partial(\rho\mathbf{v})}{\partial t}+\nabla\cdot(\rho\mathbf{v}\mathbf{v})=-\nabla p+\nabla\cdot\mathbf{T}+\mathbf{f},\end{equation}
+    其中，$p$是压力，$T$是应力张量，$f$是外力。
+    \item 能量守恒方程：
+    \begin{equation}\frac{\partial(\rho E)}{\partial t}+\nabla\cdot[\mathbf{v}(\rho E+p)]=\nabla\cdot(\mathbf{v}\cdot\mathbf{T})+\mathbf{f}\cdot\mathbf{v},\end{equation}
+    其中，$E$是单位质量的总能量。
+\end{itemize}
+
+Navier-Stokes方程的求解涉及到流体力学、数值计算和计算流体动力学等领域，对于复杂的流体问题，通常需要借助计算机模拟和数值方法来求解。使用PINN等深度学习技术结合传统的数值方法，可以有效地解决一些复杂的Navier-Stokes方程问题。Raissi等 \cite{raissi2019physics}首先在其研究中求解了二维Navier-Stokes方程的逆推问题，Jin等 \cite{jin2021nsfnets}针对一些经典的Navier-Stokes方程问题设计了NSFNets，使用具有解析解、数值解的数据集进行正问题求解训练，实验结果表明了PINN对不同Navier-Stokes方程均具有优秀的数值求解能力。
+
+\subsection{基于PINN的模型设计}
+
+考虑二维Navier-Stokes方程，由下式给出：
+\begin{equation}
+    \begin{aligned}
+        & u_t+\lambda_1(uu_x+vu_y)=-p_x+\lambda_2(u_{xx}+u_{yy}),\\
+        & v_t+\lambda_1(uv_x+vv_y)=-p_y+\lambda_2(v_{xx}+v_{yy}),
+    \end{aligned}
+\end{equation}
+其中 $u(t,x,y)$ 表示速度场的 $x$ 分量， $v(t,x,y)$ 表示 $y$ 分量， $p(t,x,y)$ 表示压力。正问题中， $\lambda=(\lambda_1,\lambda_2)$ 是表示物理系统属性的两个已知参数。
+\begin{equation}u_x+v_y=0,\end{equation}
+上式是不可压缩流体的连续性方程，描述了流体质量的守恒。为了表示一致，假设一个隐藏函数 $\psi(t,x,y)$ ，满足：
+\begin{equation}u=\psi_y,\quad v=-\psi_x,\end{equation}
+在该假设下，连续性方程（2-26）将自动满足。定义 $f(t,x,y)$ 和 $g(t,x,y)$ 如下：
+\begin{equation}
+    \begin{aligned}
+        & f=u_t+\lambda_1(uu_x+vu_y)+p_x-\lambda_2(u_{xx}+u_{yy}),\\
+        & g=v_t+\lambda_1(uv_x+vv_y)+p_y-\lambda_2(v_{xx}+v_{yy}),
+    \end{aligned}
+\end{equation}
+并通过使用具有两个输出的深层神经网络来联合逼近 $[\psi(t, x, y) \quad p(t, x, y)]$ 。该先验假设与方程（2-27）和（2-28）构成一个物理信息神经网络 $[f(t, x, y) \quad g(t, x, y)]$ 。神经网络 $[\psi(t, x, y) \quad p(t, x, y)]$ 和 $[f(t, x, y) \quad g(t, x, y)]$ 的参数可以通过最小化均方误差（Mean Square Error,MSE）损失和 PDE 残差损失来训练：
+\begin{equation}
+    \begin{aligned}
+        Loss&=\quad\frac1N\sum_{k=1}^N\left(|u(t^k,x^k,y^k)-u^k|^2+|v(t^k,x^k,y^k)-v^k|^2\right)\\
+            &+\quad\frac1N\sum_{k=1}^N\left(|f(t^k,x^k,y^k)|^2+|g(t^k,x^k,y^k)|^2\right).
+    \end{aligned}
+    \label{equ:ns_loss}
+\end{equation}
+
+本文涉及的PINN模型用于模拟雷诺数（$Re$）为100时圆柱后面的2D漩涡脱落，该系统表现出周期性稳态行为，其特征是圆柱尾流中的非对称涡脱落模式，被称为 $\text{Kármán}$ 涡街。假设无量纲自由流速度 $u_{\infty}=1$ 、圆柱位于 $(x,y)=(0,0)$ 处，直径 $D = 1$ ，动力粘度 $ν = 0.01$，利用Raissi等 \cite{raissi2019physics}进行高保真直接数值模拟的数据作为参考，并提供边界和初始数据用于训练。考虑的模拟区域为 $[1,8]×[−2,2]$，时间跨度为 $[1,8]$（超过一个漩涡脱落周期），时间步长为  $\varDelta t = 0.1$ 。在模拟中随机选择了 $N = 5000$ 个采样点（包括边界点和内部点），仅占总可用数据的 1\%。使用PyTorch搭建深层神经网络，具有 3 个输入， 2 个输出， 6 个隐藏层，每层包含 50 个神经元，使用 $tanh$ 作为激活函数。参数设置完成后，对模型进行了 40000 次的Adam迭代训练，学习率为 $1\times10^{-3}$，并使用学习率衰减策略对训练过程中的学习率进行调整。
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ns_equ.jpg}
+    \caption{当 $Re = 100$ 时通过圆柱体的不可压缩流和动态漩涡脱落 \cite{raissi2019physics}}
+    \label{fig:ns_equ}
+\end{figure}
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[width=0.9\linewidth]{ns_uv.jpg}
+    \caption{流向速度$u(t, x, y)$和横向速度$v(t, x, t)$的训练数据点位置 \cite{raissi2019physics}}
+    \label{fig:ns_uv}
+\end{figure}
+
+训练过程中的 MSE 损失和 PDE 损失（对应式 \ref{equ:ns_loss}）如图 \ref{fig:1_pinn_loss}所示，MSE 损失最低达到3.0539e-05，PDE 损失最低达到4.5415e-05。训练过程中 MSE 损失的下降说明模型对于训练数据的拟合程度越来越高，面对Navier-Stokes方程这类高度非线性的偏微分方程能够实现输入到输出之间的复杂映射。 PDE 损失的下降说明模型对于物理定律的遵守程度越来越高，充分利用了先验知识来提高模型的合理性和可靠性。在缺乏足够数据或数据质量不高时，这种机制显得尤为重要。
+
+\begin{figure}[!htb]
+    \centering
+    \begin{subfigure}[t]{0.48\linewidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[b]{1\linewidth}
+        \includegraphics[width=1\linewidth]{1_pinn_l2.png}
+        \caption{MSE 损失}
+        \end{minipage}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.48\linewidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[b]{1\linewidth}
+        \includegraphics[width=1\linewidth]{1_pinn_eq.png}
+        \caption{PDE 损失}
+        \end{minipage}
+    \end{subfigure}
+
+    \caption{PINN 训练损失曲线}
+    \label{fig:1_pinn_loss}
+\end{figure}
+
+图 \ref{fig:1_pinn} 直观展示了 PINN 在 $t = 2.0 $ 时刻的精确解、预测解和绝对误差。在低速区域和高压区域，PINN的预测较为准确，误差更多地分布在流场中较为复杂的区域，这为后续 PINN 的优化提供了思路。另外，PINN 能够在缺乏任何压力数据的情况下对整个压力场 $p(t,x,y)$ 进行较为准确的预测，体现了 PINN 的物理推理能力和在高维问题上求解的强大潜力。
+\begin{figure}[!htb]
+    \centering
+    % 第一行
+    \begin{subfigure}[t]{0.32\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{u_star.png}
+            \caption{$u$精确值}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.32\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{v_star.png}
+            \caption{$v$精确值}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.32\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{p_star.png}
+            \caption{$p$精确值}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第二行
+    \begin{subfigure}[t]{0.32\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{pinn_u_pred.png}
+            \caption{$u$预测值}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.32\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{pinn_v_pred.png}
+            \caption{$v$预测值}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.32\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{pinn_p_pred.png}
+            \caption{$p$预测值}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第三行
+    \begin{subfigure}[t]{0.32\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{pinn_u_error.png}
+            \caption{$u$绝对误差}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.32\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{pinn_v_error.png}
+            \caption{$v$绝对误差}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.32\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{pinn_p_error.png}
+            \caption{$p$绝对误差}
+        \end{minipage}
+    \end{subfigure}%
+
+    \caption{PINN预测结果}
+    \label{fig:1_pinn}
+\end{figure}
+
+\section{小结}
+
+本章详细介绍了物理信息神经网络（PINN）的基础理论及其在处理复杂偏微分方程（PDE）中的应用。PINN通过整合物理定律与深度学习模型，提升了模型在数据稀缺情况下的表现，增强了模型的可解释性和泛化能力，适用于解决一些传统数值方法难以处理的复杂物理问题。
+
+尽管PINN在许多方面表现出色，但在求解Navier-Stokes方程时，仍然存在一些局限和挑战。在高雷诺数情况下，流场的高度非线性和涡流结构的复杂性增加了PINN模型的训练难度。模型在这些复杂区域的拟合不足，导致收敛速度减慢，需要更多的迭代次数和计算资源，直接影响了计算效率和实际应用的可行性。
+
+针对上述问题，后续本研究将从以下三个方面进行优化：
+\begin{itemize}
+    \item 自适应采样策略：使用自适应采样方法可以优化采样点的分布和数量，重点关注复杂区域（如边界层、高梯度区域等）的训练可以有效提高PINN模型的学习效率和数值解的精度。
+    \item 动态调整损失权重：传统的损失函数难以应对所有类型的物理问题，比如非线性强烈的流体动力学问题。通过引入动态权重调整可以更灵活地平衡方程的残差和边界条件，从而提高求解的精确度和稳定性。
+    \item 改进网络结构：网络结构的改进能够使模型更有效地捕获深层的数据特征，使用残差连接、注意力机制等可以提高网络的表达能力和训练速度，加快模型收敛速度并使得模型最终收敛到更优的解。
+\end{itemize}

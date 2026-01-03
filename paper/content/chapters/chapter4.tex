@@ -1,0 +1,338 @@
+%!TEX root = ../../csuthesis_main.tex
+\chapter{基于残差注意力的自适应物理信息神经网络}
+
+在使用 PINN 进行求解时，目标函数的均值计算可能会导致模型忽略关键区域采样点的残差（式（\ref{equ:pde_absolute}）），表现为训练期间总损失减少，但某些空间或时间特征无法完全捕获。该现象在多目标损失函数中尤其明显，不仅导致了求解精度下降，而且会影响数据信息从初始条件和边界条件到关键区域的流动，进而阻碍收敛。尽管小批量技术为该问题提供了一定的解决方案，但先验识别问题区域的困难仍然存在。
+
+针对该问题，其中一种解决方法是选择一组全局或局部的权重乘数，这些乘数可以在训练期间进行调整。全局乘数的主要目的是平衡损失函数的不同项，而局部乘数的目的是增强特定采样点的影响。建立这些乘数系统的更新规则可以极大地帮助优化器，文献中 \cite{wang2021understanding,wang2022and,liu2021dual,mcclenny2020self,xiang2022self}记录了几种成功的策略，证明了该方法的有效性。
+
+\section{基于软注意力的自适应损失权重}
+
+第 2.3 节中概述的基线 PINN 算法虽然在求解许多线性和非线性偏微分方程时表现出色，但在处理某些“刚性”PDE时可能产生不准确的近似值，甚至无法完全收敛。许多研究 \cite{wang2021understanding,wang2022and}证明，该现象是由于梯度下降法应用于多目标损失函数(式 （\ref{eq:loss}））的不足导致的。梯度下降是一种贪婪过程，可能会过分关注损失函数的某些组成部分而牺牲其他部分，导致不同损失组成之间的下降速率不平衡，从而无法收敛到正确解。相关文献 \cite{wang2021understanding,wang2022and}中的标准做法是在式 （\ref{eq:loss}）中引入权重来纠正这种不平衡，这些加权策略虽然能够增强基线 PINN 的稳定性和精确性，但缺乏灵活的自适应机制。本节介绍了McClenny等 \cite{mcclenny2020self}提出的一种创新方法，通过引入全可训练的权重来生成软注意力掩码，该方法借鉴了计算机视觉领域中的注意力机制理念\cite{vaswani2017attention}。与直接在解的特定区域预设权重的做法不同，该方法使神经网络进行自适应的学习，通过梯度上升/下降同时更新损失函数中的权重与网络权重。
+
+依据式 (\ref{eq:loss})提出的自适应物理信息神经网络（Self-Adaptive PINN, SA-PINN）采用下述损失函数：
+\begin{equation}
+    \label{eq:sa_loss}
+    \begin{aligned}
+        \mathcal{L}(\boldsymbol{\theta},\boldsymbol{\lambda}_r,\boldsymbol{\lambda}_b,\boldsymbol{\lambda}_i,\boldsymbol{\lambda}_s;\mathcal{T}) 
+        =&\mathcal{L}_r(\boldsymbol{\theta},\boldsymbol{\lambda}_r;\mathcal{T}_r) 
+        +\mathcal{L}_b(\boldsymbol{\theta},\boldsymbol{\lambda}_b;\mathcal{T}_b) \\
+        +&\mathcal{L}_i(\boldsymbol{\theta},\boldsymbol{\lambda}_i;\mathcal{T}_i) 
+        +\mathcal{L}_s(\boldsymbol{\theta},\boldsymbol{\lambda}_s;\mathcal{T}_s),
+    \end{aligned}
+\end{equation}
+其中 $\lambda_r$ ， $\lambda_b$ ， $\lambda_i$ ， $\lambda_s$ 代表PDE残差损失、边界条件损失、初始条件损失、和训练数据损失的可训练的非负“自适应权重”。具体损失项定义如下：
+\begin{equation}
+    \mathcal{L}_r(\boldsymbol{\theta},\boldsymbol{\lambda}_r;\mathcal{T} _r)=\frac1{|\mathcal{T}_r|}\sum_{\boldsymbol{x}\in \mathcal{T}_r}m(\lambda_r)\|\frac{\partial \boldsymbol{\hat{u}}}{\partial t}(\boldsymbol{x}_r,t_r;\boldsymbol{\theta})+\mathcal{N}[\boldsymbol{\hat{u}}](\boldsymbol{x}_r,t_r;\boldsymbol{\theta})\|^2,
+\end{equation}
+
+\begin{equation}
+    \mathcal{L}_b(\boldsymbol{\theta},\boldsymbol{\lambda}_b;\mathcal{T} _b)=\frac1{|\mathcal{T}_b|}\sum_{\boldsymbol{x}\in \mathcal{T}_b}m(\lambda_b)\|\mathcal{B}[\boldsymbol{\hat{u}}](\boldsymbol{x}_b,t_b;\boldsymbol{\theta})\|^2,
+\end{equation}
+
+\begin{equation}
+    \mathcal{L}_i(\boldsymbol{\theta},\boldsymbol{\lambda}_i;\mathcal{T} _i)=\frac1{|\mathcal{T}_i|}\sum_{\boldsymbol{x}\in \mathcal{T}_i}m(\lambda_i)\|\boldsymbol{\hat{u}}(\boldsymbol{x}_i,0)-\boldsymbol{g}(\boldsymbol{x}_i)\|^2,
+\end{equation}
+
+\begin{equation}
+    \mathcal{L}_s(\boldsymbol{\theta},\boldsymbol{\lambda}_s;\mathcal{T} _s)=\frac1{|\mathcal{T}_s|}\sum_{\boldsymbol{x}\in \mathcal{T}_s}m(\lambda_s)\|\hat{\boldsymbol{u}}(\boldsymbol{x}_s,t_s;\boldsymbol{\theta})-\boldsymbol{u}_s\|^2,
+\end{equation}
+
+这里，“自适应掩码函数” $m(\boldsymbol{\lambda})$ 定义在区间 $[0,\infty)$ 上，为$\boldsymbol{\lambda}$的非负、可导、严格递增函数。
+
+自适应 PINN 的核心在于，最小化关于网络权重 $\boldsymbol{\theta}$ 的损失$\mathcal{L}(\boldsymbol{\theta},\boldsymbol{\lambda}_r,\boldsymbol{\lambda}_b,\boldsymbol{\lambda}_i,\boldsymbol{\lambda}_s;\mathcal{T}) $，同时最大化关于自适应权重$\boldsymbol{\lambda}=(\boldsymbol{\lambda}_r,\boldsymbol{\lambda}_b,\boldsymbol{\lambda}_i,\boldsymbol{\lambda}_s)$的损失，即优化目标为：
+\begin{equation}\min_{\boldsymbol{\theta}}\max_{\boldsymbol{\lambda}_r,\boldsymbol{\lambda}_b,\boldsymbol{\lambda}_i,\boldsymbol{\lambda}_s}\mathcal{L}(\boldsymbol{\theta},\boldsymbol{\lambda}_r,\boldsymbol{\lambda}_b,\boldsymbol{\lambda}_i,\boldsymbol{\lambda}_s) .\end{equation}
+
+通过梯度上升/下降法实现这一目标的迭代过程为：
+\begin{equation}
+    \begin{aligned}
+        &\boldsymbol{\theta}^{k+1} = \boldsymbol{\theta}^k - \eta^k \nabla_{\boldsymbol{\theta}}\mathcal{L}(\boldsymbol{\theta}^k,\boldsymbol{\lambda}_r^k,\boldsymbol{\lambda}_b^k,\boldsymbol{\lambda}_i^k,\boldsymbol{\lambda}_s^k) \\
+        &\boldsymbol{\lambda}_r^{k+1} = \boldsymbol{\lambda}_r^k + \rho_r^k \nabla_{\boldsymbol{\theta}}\mathcal{L}(\boldsymbol{\theta}^k,\boldsymbol{\lambda}_r^k,\boldsymbol{\lambda}_b^k,\boldsymbol{\lambda}_i^k,\boldsymbol{\lambda}_s^k) \\
+        &\boldsymbol{\lambda}_b^{k+1} = \boldsymbol{\lambda}_b^k + \rho_b^k \nabla_{\boldsymbol{\theta}}\mathcal{L}(\boldsymbol{\theta}^k,\boldsymbol{\lambda}_r^k,\boldsymbol{\lambda}_b^k,\boldsymbol{\lambda}_i^k,\boldsymbol{\lambda}_s^k) \\
+        &\boldsymbol{\lambda}_i^{k+1} = \boldsymbol{\lambda}_i^k + \rho_i^k \nabla_{\boldsymbol{\theta}}\mathcal{L}(\boldsymbol{\theta}^k,\boldsymbol{\lambda}_r^k,\boldsymbol{\lambda}_b^k,\boldsymbol{\lambda}_i^k,\boldsymbol{\lambda}_s^k) \\
+        &\boldsymbol{\lambda}_s^{k+1} = \boldsymbol{\lambda}_s^k + \rho_s^k \nabla_{\boldsymbol{\theta}}\mathcal{L}(\boldsymbol{\theta}^k,\boldsymbol{\lambda}_r^k,\boldsymbol{\lambda}_b^k,\boldsymbol{\lambda}_i^k,\boldsymbol{\lambda}_s^k) . 
+    \end{aligned}
+\end{equation}
+其中 $\eta^k > 0$ 是第 $k$ 步时 $\boldsymbol{\theta}$ 的学习率，$\rho_p^k > 0$是针对自适应权重 $p=r,b,i,s$ 的学习率。
+ 
+考虑到掩码函数的性质，若$m'(\lambda) > 0$，则$\nabla_{\boldsymbol{\theta}}\mathcal{L},\nabla_{\boldsymbol{\theta}}\mathcal{L},\nabla_{\boldsymbol{\theta}}\mathcal{L}, \nabla_{\boldsymbol{\theta}}\mathcal{L} \geq 0$，即只要对应的无权重损失不为零，各权重序列都会单调递增。此外，更新的幅度与未加权损失的大小成正比，从而在损失较大的区域施加更强的惩罚。通过调整学习率$\rho^i_p$，可以进一步控制更新的幅度，增强了模型的灵活性。
+
+值得注意的是，自适应权重可以根据实际需求设定为固定值，例如将边界条件权重固定为1，仅训练初始条件和残差点的权重。权重初始化可以根据问题特性灵活选择，可以设置为1（无权重初始化）、根据先验知识设定不同初值，或是随机初始化在某一区间内，如同神经网络权重的初始化过程。
+
+掩码函数的选择对训练过程有着直接影响，常见的选择包括多项式函数$m(\lambda) = c\lambda^q$（其中$c,q > 0$）以及Logistic函数。掩码函数的具体形态会影响训练的聚焦程度和效率，如图~\ref{fig:sa-mask}所示，展示了掩码函数的一些实例。
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[width=1.0\linewidth]{sa-mask.jpg}
+    \caption{掩码函数示例 \cite{mcclenny2020self}}
+    \label{fig:sa-mask}
+\end{figure}
+
+\section{基于残差注意力的损失权重}
+
+利用神经网络的自适应特性能够很好地平衡 PINN 的损失组成，其中对高残差区域的关注对于提升优化效果至关重要，为了更进一步提高PINN的优化效果，可以通过另外的加权策略使得神经网络自适应地关注高残差区域的优化。Anagnostopoulos等 \cite{anagnostopoulos2024residual}提出了一种基于残差注意力（Residual-Based Attention, RBA）方法，能够帮助优化器实现上述功能。该方法基于累积残差的滚动历史开发了一个简单的、无梯度的注意力掩模，有效地计算了训练点的自适应权重，从而保证数据信息在空间和时间维度上的正确传播和对关键区域的高度关注。损失残差包含了来自高误差区域的信息，由此获得的权重可用作注意力掩模，从而帮助优化器高效地捕获数据信息的空间或时间特征。权重更新策略体现了神经网络训练的动态特性，能够在训练过程中进行自我调整。
+
+基于 RMSprop 和 Adam \cite{kingma2014adam} 等经典优化器的指数加权移动平均（Exponential Weighted Moving Average, EWMA）公式，迭代 $k$ 时各采样点$\mathbf{x}$基于残差的乘数更新规则由下式给出：
+\begin{equation}\boldsymbol{\lambda}_{r'}^{k+1}\leftarrow\gamma\boldsymbol{\lambda}_{r'}^k+\eta^*\frac{\varepsilon(\mathbf{x})}{\varepsilon(\mathbf{x})_{max}},\end{equation}
+其中， $γ$ 是衰减参数，$η*$ 是学习率。优化器的学习率 $η$ 和加权方案的学习率 $η*$ 是两个不同的超参数。
+
+该式满足收敛的线性齐次递推关系。由于 $\frac{\varepsilon(\mathbf{x})}{\varepsilon(\mathbf{x})_{max}} \in [0, 1]$ 且 $\boldsymbol{\lambda}^1\neq0$ ，其界限由下式给出：
+\begin{equation}\boldsymbol{\lambda}_{r'}^k\in(0,\frac{\eta^*}{1-\gamma}],\quad \mathrm{~}k\to\infty \end{equation}
+
+该加权系数随归一化累积残差缩放，但由于 $γ$ 衰减，其在训练期间也会动态表现：由于 $γ$ 位于 $0$ 和 $1$ 之间，随着 $k$ 的增加，$\boldsymbol{\lambda}_{r'}^k$ 对 $\boldsymbol{\lambda}_{r'}^{k+1}$ 的贡献将逐渐减小。同时， $\eta^*\frac{\varepsilon(\mathbf{x})}{\varepsilon(\mathbf{x})_{max}}$ 每次迭代中都会添加，从而达到最终的平衡。由于训练过程中采样点$\mathbf{x}$会随损失残差而不断变化，因此 $\boldsymbol{\lambda}_{r'}$ 的分布也将在整个关注的区域中动态变化。
+
+所提出的残差加权方案的主要优点总结如下： 
+\begin{itemize}
+    \item 确定性操作方案，以 $\gamma$ 和 $\eta^*$ 参数为界，确保不存在爆炸乘数。 
+    \item 不涉及训练或梯度计算，所导致的额外计算成本可以忽略不计。 
+    \item 使用累积残差进行缩放可以保证数据信息在空间和时间维度上的正确传播和对关键区域的高度关注。
+\end{itemize}
+
+算法 \ref{alg:rba} 概述了对标准梯度下降优化方法的改进训练流程。定义残差注意力（RBA）权重为 $λ_{r'}$，并为所有采样点初始化为 $0$ 值，以便在 $k = 1$ 时得到 $λ_{r'}^1 = \frac{\varepsilon(\mathbf{x})}{\varepsilon(\mathbf{x})_{max}}$。对于所有训练样本，RBA学习率和衰减超参数分别设置为 $η^∗=0.01$ 和 $γ=0.99$ 。可以向更新后的权重中添加一个常数 $\boldsymbol{\lambda}_0$ 以提高下界，同时调整最大权重与最小权重的比例（本研究中$\boldsymbol{\lambda}_0$取值为0）。
+
+\begin{algorithm}[h]
+    \caption{基于残差注意力的梯度下降优化算法}
+    \label{alg:rba}
+    \begin{algorithmic}[1]
+        \STATE 初始化参数：Xavier $\forall \theta_i$ ，$0 \forall λ_{r'}$;
+        \WHILE {未达到总迭代次数}
+            \FOR{每批训练集迭代优化}
+                \STATE $\boldsymbol{\lambda}_{r'}^{k+1}\leftarrow\gamma\boldsymbol{\lambda}_{r'}^k+\eta^*\frac{\varepsilon(\mathbf{x})}{\varepsilon(\mathbf{x})_{max}};$
+                \STATE $\boldsymbol{\lambda}_{r'}^{k+1}\leftarrow\boldsymbol{\lambda}_{r'}^{k+1} + \boldsymbol{\lambda}_0;$
+                \STATE $\mathcal{L}_{r'}^*=\langle(\boldsymbol{\lambda}_{r'}^{k+1}\cdot \varepsilon(\mathbf{x}))^2\rangle;$
+                \STATE $\mathcal{L}=\mathcal{L}_{r'}^*+\boldsymbol{\lambda}_{b}\mathcal{L}_{b}+\boldsymbol{\lambda}_{i}\mathcal{L}_{i}+\boldsymbol{\lambda}_{s}\mathcal{L}_s;$
+                \STATE $\boldsymbol{\theta}_i^{k+1}=\boldsymbol{\theta}_i^{k}-\eta^{k}\nabla_{\boldsymbol{\theta}}\mathcal{L}$
+            \ENDFOR
+        \ENDWHILE % 添加了ENDWHILE以结束循环
+    \end{algorithmic}
+\end{algorithm}
+
+\section{基于Transformer的改进多层感知机方法}
+
+除了使用不同的采样策略和改进损失函数外，深层神经网络在提取数据特征方面一个关键的因素在于网络架构的设计。文献中一些成功的神经网络架构原则上是为了利用与特定任务相关的先验知识而设计的。例如，卷积神经网络（Convolutional Neural Networks, CNN）\cite{krizhevsky2012imagenet}广泛应用于目标识别和图像分类任务，这是因为卷积操作自然地符合平移对称性，这是图像识别中的一个关键特征。同样，循环神经网络（Recurrent Neural Networks, RNN）\cite{lipton2015critical}因其能够保持时间不变性和捕获长期依赖性而非常适合于序列数据的建模。受到计算机视觉和自然语言处理任务中注意力机制 \cite{vaswani2017attention}的启发，Wang等 \cite{wang2021understanding}提出了一种基于Transformer的改进多层感知机（Modified Multi-Layer Perceptron, mMLP）神经网络架构，主要有以下两个特点：
+\begin{itemize}
+    \item 显式地考虑输入维度之间的乘法交互；
+    \item 使用残差连接增强隐藏状态。
+\end{itemize}
+具体来说，通过对传统的全连接架构引入两个Transformer网络，将输入变量投影到高维特征空间中，然后使用逐点乘法操作根据以下前向传播规则更新隐藏层：
+\begin{equation}
+    \begin{aligned}
+        &U=\sigma (XW^{1}+b^{1}),\quad V=\sigma (XW^{2}+b^{2}), \\
+        &H^{(1)}=\sigma (XW^{z,1}+b^{z,1}), \\
+        &\begin{aligned}Z^{(k)}=\sigma (H^{(k)}W^{z,k}+b^{z,k}),&&k=1,\ldots,L,\end{aligned} \\
+        &\begin{aligned}H^{(k+1)}=(1-Z^{(k)})\odot U+Z^{(k)}\odot V,&&k=1,\dots,L,\end{aligned} \\
+        &\begin{aligned}f_\theta(x)=H^{(L+1)}W+b,\end{aligned}
+    \end{aligned}
+\end{equation}
+
+其中$X$表示$(n × d)$设计矩阵，即输入数据点的矩阵，$\bigodot $表示元素间的乘法。该模型的参数本质上与标准全连接架构相同，只是增加了两个变换网络使用的权重和偏差，即
+\begin{equation}\theta=\{W^1,b^1,W^2,b^2,(W^{z,l},b^{z,l})_{l=1}^L,W,b\}.\end{equation}
+
+最后，每层的单元数为$N$，$\sigma:\mathbb{R}^N\to\mathbb{R}^N$是一个非线性激活函数。这里还应注意到，所提出的架构及其关联的前向传播过程带来的计算和内存开销相对较小，同时在预测准确性方面取得了显著改进。
+
+\section{实验分析}
+
+本节实验仍基于第 2.3.2 节的模型框架，仅在损失函数设计时加入不同的动态权重方法，探究其对模型收敛速度及最终性能的影响。在采样环节，基于第3.4节的实验结果，本节使用R3采样作为统一的采样方法。在模型参数方面，仅第4.3节提出的改进的多层感知机（mMLP）方法增加了约0.2\%的参数，对于实验的影响较小，因此不单独考虑。
+
+表 \ref{tab:my-table} 列出了本章提出的多种方法消融实验数据，以迭代4万次和10万次时的$L^2$相对误差作为衡量指标，可以看出，所提出的方法均对提升模型的预测精度产生了效果，将特定的采样方法、合适的损失函数和高效的网络结构结合能够使模型性能达到最佳。
+
+\begin{table}[htbp]
+    \centering
+    \caption{消融实验的$L^2$相对误差}
+    \label{tab:my-table}
+    \begin{tabular}{@{}lcccccc@{}}
+        \toprule
+        \multirow{2}{*}{方法} & \multicolumn{3}{c}{迭代次数：40k} & \multicolumn{3}{c}{迭代次数：100k} \\
+                 & $u$     & $v$     & total   & $u$     & $v$     & total   \\
+        \midrule
+        R3     & 0.643   & 1.656   & 2.299   & 0.360   & 0.914   & 1.274   \\
+        R3 + mMLP & 0.436   & 1.070   & 1.506   & 0.246   & 0.607   & 0.853   \\
+        R3 + SA +RBA & 0.496   & 1.374   & 1.870   & 0.303   & 0.853   & 1.156   \\
+        R3 + SA +RBA +mMLP & \textbf{0.352}  & \textbf{0.958}  & \textbf{1.310}  & \textbf{0.217}  & \textbf{0.550}  & \textbf{0.767}\\ 
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+图 \ref{fig:ablation_loss} 展示了不同方法的MSE损失函数曲线。可以发现，SA+RBA方法在训练初期就有效地引导模型朝向最优解方向发展，从而缩短达到较低损失所需的时间，但对于最终模型预测精度的提升效果相对有限。mMLP方法展现出了挖掘数据深层次特征的强大能力：残差连接有助于缓解梯度消失问题，促进信息传递，而注意力机制则强化了模型对输入数据关键特征的关注，共同促进了模型对复杂模式的学习。因此，mMLP不仅能够帮助模型在训练过程中更稳定地收敛，还达到一个相比其他方法更为优良的解，即在相同或更少的迭代次数下达到更低的MSE值。将SA+RBA与mMLP相结合，三种策略的协同效应对模型性能的提升效果尤为显著。这种集成方法不仅实现了SA+RBA的快速收敛，还充分利用了mMLP对深层特征的有效提取，实现了模型性能的提升。
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[width=0.64\linewidth]{ablation_loss.png}
+    \caption{消融实验MSE曲线}
+    \label{fig:ablation_loss}
+\end{figure}
+
+\begin{figure}[!htb]
+    \centering
+    % 第一行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{u_star.png}
+            \caption{$u$精确值}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第二行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{r3_u_pred.png}
+            \caption{$u$预测值:R3}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{r3_u_error.png}
+            \caption{$u$绝对误差:R3}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第三行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{mmlp_u_pred.png}
+            \caption{$u$预测值:R3+mMLP}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{mmlp_u_error.png}
+            \caption{$u$绝对误差：R3+mMLP}
+        \end{minipage}
+    \end{subfigure}%
+
+    % 第四行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{sa+rba_u_pred.png}
+            \caption{$u$预测值:R3+SA+RBA}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{sa+rba_u_error.png}
+            \caption{$u$绝对误差：R3+SA+RBA}
+        \end{minipage}
+    \end{subfigure}%
+
+    % 第五行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{sa+rba+mmlp_u_pred.png}
+            \caption{$u$预测值:R3+SA+RBA+mMLP}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{sa+rba+mmlp_u_error.png}
+            \caption{$u$绝对误差:R3+SA+RBA+mMLP}
+        \end{minipage}
+    \end{subfigure}%
+
+    \caption{$u$消融实验预测结果和绝对误差}
+    \label{fig:ablation_u}
+\end{figure}
+
+\begin{figure}[!htb]
+    \centering
+    % 第一行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{v_star.png}
+            \caption{$v$精确值}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第二行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{r3_v_pred.png}
+            \caption{$v$预测值:R3}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{r3_v_error.png}
+            \caption{$v$绝对误差:R3}
+        \end{minipage}
+    \end{subfigure}\\
+    
+    % 第三行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{mmlp_v_pred.png}
+            \caption{$v$预测值:R3+mMLP}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{mmlp_v_error.png}
+            \caption{$v$绝对误差：R3+mMLP}
+        \end{minipage}
+    \end{subfigure}%
+
+    % 第四行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{sa+rba_v_pred.png}
+            \caption{$v$预测值:R3+SA+RBA}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{sa+rba_v_error.png}
+            \caption{$v$绝对误差：R3+SA+RBA}
+        \end{minipage}
+    \end{subfigure}%
+
+    % 第五行
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{sa+rba+mmlp_v_pred.png}
+            \caption{$v$预测值:R3+SA+RBA+mMLP}
+        \end{minipage}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.4\textwidth}
+        \captionsetup{justification=centering}
+        \begin{minipage}[t]{\linewidth}
+            \centering
+            \includegraphics[width=\linewidth]{sa+rba+mmlp_v_error.png}
+            \caption{$v$绝对误差:R3+SA+RBA+mMLP}
+        \end{minipage}
+    \end{subfigure}%
+
+    \caption{$v$消融实验预测结果和绝对误差}
+    \label{fig:ablation_v}
+\end{figure}
