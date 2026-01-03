@@ -4,6 +4,8 @@
 
 ## Overview
 
+![Physics-Informed Neural Networks](figures/pinn.png)
+
 Physics-Informed Neural Networks (PINNs) incorporate physical laws—typically expressed by partial differential equations (PDEs)—into neural network training. By embedding PDE residuals into the loss function, PINNs can solve forward or inverse problems even with limited or no observational data.
 
 However, vanilla PINNs often suffer from **slow convergence, training instability, and poor efficiency**, especially when solving complex PDEs such as the Navier–Stokes equations.
